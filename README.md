@@ -54,6 +54,11 @@ fault path 不是把 NMR 當唯一答案，而是採取：
 | `hurricane_u` | 25M | execution + reliability |
 | `hurricane_tc` | 25M | execution |
 
+來源補充：
+
+- `cesm_atm_cloud`、`cesm_atm_q` 取自公開的 `SDRBench CESM-ATM` 欄位資料；本 repo 使用的欄位分別是 `CLOUD`（cloud fraction）與 `Q`（specific humidity）。
+- `hurricane_u`、`hurricane_tc` 取自公開的 `Hurricane Isabel` simulation dataset；本 repo 使用的欄位分別是 `U`（U-wind component）與 `TC`（temperature）。
+
 以上四個資料集都是真實科學欄位，對應post-analysis scan workload。另外，早期機制驗證使用以下人工資料集，資料集 row 數皆為10^8：
 
 | Synthetic dataset | 用途 |
