@@ -1,0 +1,292 @@
+## 1\. 任務定位
+
+本任務只針對 `strategy=byte` 的 kernel path 做優化與重構。
+
+本任務的唯一目的，是回答下面這個問題：
+
+> 在最乾淨的 `byte` byte-plane scan 路徑下，GPU throughput 到底能跑到多快？
+
+這是一個 **kernel-only refactoring task**，不是 validation task，不是 reporting task，也不是多策略比較 task。
+
+本輪不處理：
+
+- `packed32`
+- `shared128`
+- validation
+- CSV schema
+- baseline kernel
+- plotting
+- broader codebase refactor
+
+---
+
+## 2\. 核心原則
+
+### 2.1 先把 baseline 洗乾淨
+
+本輪只允許開發者把 `byte` 路徑做乾淨，不允許同時開發其他策略。
+
+### 2.2 不改 benchmark 語意
+
+必須保留以下語意不變：
+
+- SOA plane layout 不變
+- `k` 代表「讀前 k 個 planes」
+- grid-stride traversal 不變
+- reduction sink 不變
+- timing model 不變
+- block reduction 行為不變
+
+### 2.3 不對 compiler 做未驗證宣稱
+
+本任務可以要求移除 device-global pointer-array indirection， 但不得在 spec、commit message、summary 中宣稱：
+
+- 一定進 constant memory
+- 一定進 registers
+- 一定不會 spill
+
+這些都必須視最終 codegen 與 profiler/SASS 結果而定。
+
+---
+
+## 3\. 當前程式的已知問題
+
+目前 `byte` path 的 plane pointers 是由 host 建立 pointer array，複製到 `d_plane_ptrs`，再在 kernel launch 時以 `const uint8_t* const *` 形式傳入。這代表 hot path 仍依賴 device-global pointer-array indirection。
+
+目前 `grid` 是先在 host 端依 kernel pointer 算出一次，再依此組態 `d_out`。若未來 specialization 導致每個 `K` 的 occupancy 不同，則 `d_out` 的容量管理不能再假設單一固定 grid。
+
+---
+
+## 4\. 本輪唯一要做的事
+
+### 4.1 移除 byte path 的 device-global pointer-array indirection
+
+**問題** 目前 `byte` kernel 透過 `d_plane_ptrs` 取得 plane pointers，這是多餘的 device global memory indirection。
+
+**要求** `strategy=byte` 的 kernel 不得再從 device-global pointer array 讀取 plane pointers。
+
+**強制實作方式** 使用 pass-by-value pointer bundle：
+
+C++
+
+```
+template <typename T, int N>
+struct PlanePointers {
+    const T* ptrs[N];
+};
+
+using U8Planes = PlanePointers<uint8_t, 8>;
+```
+
+**新 kernel 形式** 注意必須加上 `const` 修飾：
+
+C++
+
+```
+template <int K>
+__global__ void scan_planes_u8_byte_unrolled(
+    const U8Planes planes,
+    uint64_t n,
+    unsigned long long* __restrict__ per_block_out);
+```
+
+**Host 端初始化指引** `PlanePointers` 的建構必須在 host 端完成，再 pass-by-value 傳入 kernel。開發者應使用 `static_cast` 從 `void*` 轉回原始型別：
+
+C++
+
+```
+U8Planes h_planes;
+for (int p = 0; p < 8; p++) {
+    h_planes.ptrs[p] = static_cast<const uint8_t*>(d_planes[p]);
+}
+// Launch 範例:
+// scan_planes_u8_byte_unrolled<K><<<grid, block>>>(h_planes, n, d_out);
+```
+
+**說明** 這裡要求的是：
+
+- 不再經由 `cudaMalloc` 出來的 pointer array 傳 pointer。
+- 改由 kernel argument 直接攜帶 pointer bundle。
+- **不要求也不允許** 開發者聲稱 compiler 一定把它放在 constant memory 或 registers。
+
+---
+
+### 4.2 保持 byte kernel 的 compile-time specialization
+
+**要求** 保留並延續目前 `template <int K>` 的方向。
+
+**必要條件**
+
+- `K` 的有效範圍固定為 1 到 8。
+- hot path 中 plane loop 必須是 compile-time specialization。
+- inner loop 保持 `#pragma unroll`。
+- 不允許退回 runtime `for (p = 0; p < k; ++p)` 的 byte hot path。
+
+**目的** 本輪要測的，是最乾淨的 byte baseline，不接受 runtime plane-loop overhead 混入結果。
+
+---
+
+### 4.3 Host-side launch dispatch 必須與 byte specialization 對齊
+
+**要求** Host 端必須明確用 `switch(k)` 分派到 `<1>` 到 `<8>` 的 byte kernel specialization。
+
+**要求形式** 保留類似下面的架構即可：
+
+C++
+
+```
+const void* scan_planes_u8_byte_unrolled_kernel_ptr(int k);
+void launch_scan_planes_u8_byte_unrolled(int k, ...);
+```
+
+但 kernel 參數必須改為 pass-by-value 的 `U8Planes`，不再是 `const uint8_t* const *planes`。
+
+**不允許**
+
+- 不允許把 dispatch 改成 runtime function table 並模糊化 kernel identity。
+- 不允許把 launch path 包成一堆和 benchmark 無關的 class hierarchy。
+
+---
+
+### 4.4 Occupancy query 可依 specialization 做，但 d\_out 只能一次性組態
+
+**問題** 不同 `K` specialization 可能導致不同 register footprint，進而導致不同 `maxActiveBlocksPerSM` 與不同 `grid`。
+
+**要求** 若開發者選擇依 `K` specialization 各自做 occupancy query，則必須在進入 `k` sweep 迴圈前，先掃過所有 `K=1..8` 對應的 kernel pointer，求出 `max_grid`，再一次性組態足夠大的 `d_out`。
+
+**唯一允許方案** 只允許以下流程：
+
+1. host 端先對 `K=1..8` 做 dummy occupancy query。
+2. 求出最大可能的 `grid` (`max_grid`)。
+3. 依 `max_grid` 一次性組態 `d_out` 記憶體 (`cudaMalloc`)。
+4. sweep 測試過程中只重用該 `d_out`，不得重新組態。
+
+**明確禁止**
+
+- 禁止 sweep loop 內做 `cudaMalloc`。
+- 禁止 sweep loop 內做 `cudaFree`。
+- 禁止以每個 `K` 動態重配 `d_out`。
+- 禁止假設所有 `K` 的 occupancy 相同。
+- 禁止在 `grid` 可能變大時仍沿用較小的 `d_out`。
+
+---
+
+### 4.5 不得擴大 scope 到其他策略
+
+**要求** 本輪開發中，不得修改 `packed32`、`shared128`，也不得嘗試比較 `byte` 與其他策略。
+
+**原則** 這一輪的成功標準不是「功能更多」，而是「byte baseline 更乾淨、更可審」。
+
+---
+
+## 5\. 嚴格邊界
+
+### 5.1 本輪允許改動的內容
+
+只允許修改以下範圍：
+
+- `byte` kernel signature
+- `byte` kernel pointer passing method
+- `byte` specialization dispatch
+- `byte` kernel pointer helper / wrapper
+- 與 `byte` specialization 對應的 occupancy query wiring
+- 與 `byte` specialization 對應的 `d_out` 安全容量管理（預先最大化分配）
+
+### 5.2 本輪禁止改動的內容
+
+不得做以下事情：
+
+- 不得加入 validation code
+- 不得修改 CSV schema
+- 不得加入新的 benchmark mode
+- 不得加入 baseline kernel
+- 不得改 timing path
+- 不得改 allocation layout
+- 不得改 reduction semantics
+- 不得加入 async stream
+- 不得加入 pinned memory
+- 不得加入 CUB / Thrust / 第三方依賴
+- 不得加入 `__launch_bounds__`
+- 不得順手重構整個檔案結構
+
+---
+
+## 6\. 預期效果假說
+
+本輪重構的唯一性能假說是：
+
+1. 移除 device-global pointer-array indirection 後，`byte` hot path 應更乾淨。
+2. `template <K>` baseline 維持 compile-time unrolling。
+3. 若目前 profile 中的部分 latency 來自 pointer-indirection 與相關 load path 雜訊，則此重構應有助於提升 `byte` throughput 或降低等待行為。
+
+**明確限制** 本規格 **不保證** 一定加速。本規格只保證這次改動更接近真正想測的 baseline。
+
+---
+
+## 7\. 驗收標準
+
+任務完成必須同時滿足以下條件：
+
+### 7.1 Kernel path
+
+- `byte` kernel 改為接收 `U8Planes` pass-by-value pointer bundle。
+- hot path 不再依賴 device-global pointer array。
+- `byte` 保持 `template <K>` specialization。
+- `byte` hot path 不存在 runtime plane loop。
+- kernel signature 使用 `const U8Planes planes`。
+
+### 7.2 Launch path
+
+- host 端有明確 `switch(k)` dispatch 到 `<1>` 到 `<8>`。
+- occupancy query 如依 specialization 變動，`d_out` 容量必須以 `max_grid` 一次性組態。
+- sweep loop 中不存在 `cudaMalloc`/`cudaFree` for `d_out`。
+
+### 7.3 Scope discipline
+
+- `packed32` 未被修改。
+- `shared128` 未被修改。
+- timing / CSV / validation / plotting 未被修改。
+
+### 7.4 Semantics
+
+- 仍然只讀前 `k` 個 planes。
+- grid-stride 遍歷不變。
+- block reduction sink 不變。
+- benchmark 語意不漂移。
+
+---
+
+## 8\. 流程聲明
+
+本 PR 是 **kernel-only PR**。正確性驗證與輸出驗證將由後續獨立流程處理。
+
+因此：
+
+- 本 PR 不要求內建 validation code。
+- 但開發者必須以最保守方式改動，不得擴 scope。
+- reviewer 將在下一階段接手 correctness / validation pass。
+
+這不是放棄正確性，而是明確切開責任邊界。
+
+---
+
+## 9\. 開發者回報格式
+
+完成後，開發者必須用以下格式回報：
+
+1. `Summary`
+2. `Kernel Interface Changes`
+3. `Launch/Occupancy Changes`
+4. `d_out Capacity Handling`
+5. `Behavior Preserved`
+6. `What Was Explicitly Not Changed`
+7. `Open Caveats`
+
+**禁止回報方式** 不得寫：
+
+- 「已優化很多」
+- 「理論上會更快」
+- 「應該進 constant memory」
+- 「大概不會有 overflow 問題」
+
+所有描述都必須對應實際改動內容，而不是猜測。
