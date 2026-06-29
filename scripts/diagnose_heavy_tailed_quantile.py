@@ -13,7 +13,7 @@ import argparse
 
 import numpy as np
 
-RAW_DEFAULT = "/work/u4063895/datasets/synthetic/dev/heavy_tailed.f64le.bin"
+RAW_DEFAULT = "${WORK_DIR}/datasets/synthetic/dev/heavy_tailed.f64le.bin"
 
 
 def main():

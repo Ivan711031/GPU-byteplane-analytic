@@ -8,30 +8,23 @@
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
-
 set -euo pipefail
-
 module purge
 module load miniconda3/26.1.1
 module load cuda/12.6
 conda activate gpu-byteplane-scan
-
-cd /home/u4063895/workspace/gpu-byteplane-scan-experiments
-
+cd ${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments
 mkdir -p logs results/exp4 handoff/job_done
-
 # Hardware validation: must be H200
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ')
 if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
-
 RESULT_CSV="results/exp4/smoke_uniform_500_${SLURM_JOB_ID}.csv"
 GPU_LOG="logs/${SLURM_JOB_ID}_gpu_util.csv"
 HANDOFF_DIR="handoff/job_done"
 HANDOFF_MARKER="${HANDOFF_DIR}/job_${SLURM_JOB_ID}.json"
-
 echo "=== Job info ==="
 echo "JOB_ID=${SLURM_JOB_ID}"
 echo "HOST=$(hostname)"
@@ -44,7 +37,6 @@ nvcc --version
 echo "=== Git info ==="
 git rev-parse HEAD || true
 git status --short || true
-
 # GPU utilization tracker
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
 (
@@ -56,7 +48,6 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
   done
 ) &
 TRACKER_PID=$!
-
 write_handoff_marker() {
   status=$?
   kill "$TRACKER_PID" 2>/dev/null || true
@@ -80,11 +71,10 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 echo "=== Run benchmark ==="
 ./build/exp4/bench_progressive_filter \
   --device 0 \
-  --encoded-root /work/u4063895/datasets/synthetic/dev_buff_exp3/uniform \
+  --encoded-root ${WORK_DIR}/datasets/synthetic/dev_buff_exp3/uniform \
   --threshold 500.0 \
   --validate \
   --csv "$RESULT_CSV"

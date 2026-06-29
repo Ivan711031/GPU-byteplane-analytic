@@ -5,15 +5,12 @@
 #SBATCH -t 0-02:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm-%j.out
-
 set -euo pipefail
 export PYTHONUNBUFFERED=1
-
 echo "=== NMR-D Production ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 date
-
 REQUIRE_H200=${REQUIRE_H200:-yes}
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
 echo "GPU: $GPU_NAME"
@@ -21,26 +18,21 @@ if [ "$REQUIRE_H200" = "yes" ] && ! echo "$GPU_NAME" | grep -qi "H200"; then
   echo "FATAL: Expected H200 (REQUIRE_H200=yes), got $GPU_NAME"
   exit 2
 fi
-
 ml purge
 ml load miniconda3/26.1.1
 ml load cuda/12.6
 conda activate gpu-byteplane-scan
-
 PROJECT_DIR=${SLURM_SUBMIT_DIR:-$(pwd)}
 SCRIPT_DIR="$PROJECT_DIR/scripts"
 RESULTS_DIR="$PROJECT_DIR/results/reliability_layer1/phase4/nmr_d_claim1_closure/job_${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
-
 DATASET=${DATASET:-cesm_atm_cloud}
 echo "Dataset: $DATASET"
 echo "Results: $RESULTS_DIR"
-
 echo
-DATASET_DIR=${DATASET_DIR:-"/work/u4063895/datasets/locality_sensitivity"}
+DATASET_DIR=${DATASET_DIR:-"${WORK_DIR}/datasets/locality_sensitivity"}
 H200_FLAG=""
 if [ "$REQUIRE_H200" = "yes" ]; then H200_FLAG="--require-h200"; fi
-
 echo "=== Full sweep: $DATASET (det + stochastic, 30 seeds) ==="
 python3 "$SCRIPT_DIR/phase4_nmr_d_claim1_evaluator.py" \
   --mode full \
@@ -48,7 +40,6 @@ python3 "$SCRIPT_DIR/phase4_nmr_d_claim1_evaluator.py" \
   --seeds 30 \
   --dataset-dir "$DATASET_DIR" \
   $H200_FLAG
-
 echo
 echo "=== Coverage manifest ==="
 COV="$RESULTS_DIR/nmr_d_coverage_manifest.csv"
@@ -65,7 +56,6 @@ if not fails:
     print('All coverage gates pass')
 "
 fi
-
 cat > "$RESULTS_DIR/job_marker.json" <<ENDJSON
 {
   "job_id": "$SLURM_JOB_ID",
@@ -78,7 +68,6 @@ cat > "$RESULTS_DIR/job_marker.json" <<ENDJSON
   "results_dir": "$RESULTS_DIR"
 }
 ENDJSON
-
 echo
 echo "=== Complete ==="
 echo "Results: $RESULTS_DIR"

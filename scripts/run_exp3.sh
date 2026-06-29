@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build/exp3}"
 RESULTS_BASE="${RESULTS_BASE:-$ROOT_DIR/results/exp3}"
-
 DEVICE="${DEVICE:-0}"
 MODE="${MODE:-synthetic_fixed_point_subcolumns}"
 ENCODED_ROOT="${ENCODED_ROOT:-}"
@@ -27,17 +25,14 @@ ARTIFACT_VERSION="${ARTIFACT_VERSION:-}"
 ARTIFACT_LABEL="${ARTIFACT_LABEL:-}"
 PRECISION_POWER="${PRECISION_POWER:-}"
 SUM_REFERENCE_DOMAIN="${SUM_REFERENCE_DOMAIN:-}"
-
 join_cmd() {
   printf '%q ' "$@"
 }
-
 ceil_div() {
   local x="$1"
   local y="$2"
   printf '%s\n' $(((x + y - 1) / y))
 }
-
 detect_gpu_name() {
   if command -v nvidia-smi >/dev/null 2>&1; then
     local name
@@ -51,7 +46,6 @@ detect_gpu_name() {
   fi
   printf 'unknown_gpu\n'
 }
-
 normalize_gpu_tag() {
   local raw="$1"
   local upper cleaned
@@ -70,7 +64,6 @@ normalize_gpu_tag() {
   fi
   printf '%s\n' "$cleaned"
 }
-
 git_branch="unknown"
 git_commit="unknown"
 git_dirty="unknown"
@@ -83,7 +76,6 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_dirty="dirty"
   fi
 fi
-
 timestamp="$(date +%Y%m%d_%H%M%S)"
 job_id="${SLURM_JOB_ID:-nojob}"
 gpu_name="${GPU_NAME_OVERRIDE:-$(detect_gpu_name)}"
@@ -92,7 +84,6 @@ run_dir="$RESULTS_BASE/run_${timestamp}_job${job_id}_${gpu_tag}"
 run_desc="${RUN_DESC:-"No description provided for this run."}"
 benchmark_csv="$run_dir/.exp3_raw.csv"
 final_csv="$run_dir/$CSV_NAME"
-
 cleanup_failed_run() {
   local status=$?
   if [[ $status -ne 0 && -n "${run_dir:-}" && -d "${run_dir}" ]]; then
@@ -100,25 +91,20 @@ cleanup_failed_run() {
   fi
 }
 trap cleanup_failed_run EXIT
-
 mkdir -p "$run_dir"
-
 if [[ "$LOAD_STRATEGY" != "rowpack16" ]]; then
   echo "error: LOAD_STRATEGY must be rowpack16 in exp3 v1, got: $LOAD_STRATEGY" >&2
   exit 2
 fi
-
 if [[ "$MODE" == "encoded_dev_subcolumns" && -z "$ENCODED_ROOT" ]]; then
   if [[ -n "$V2_ROOT" ]]; then
     ENCODED_ROOT="$V2_ROOT"
   fi
 fi
-
 if [[ "$MODE" == "encoded_dev_subcolumns" && -z "$ENCODED_ROOT" ]]; then
   echo "error: ENCODED_ROOT is required when MODE=encoded_dev_subcolumns" >&2
   exit 2
 fi
-
 if [[ "$MODE" == "encoded_dev_subcolumns" ]]; then
   case "$REAL_KERNEL_VARIANT" in
     runtime|specialized) ;;
@@ -128,7 +114,6 @@ if [[ "$MODE" == "encoded_dev_subcolumns" ]]; then
       ;;
   esac
 fi
-
 setup_file="$run_dir/setup_estimate.txt"
 if [[ "$MODE" == "synthetic_fixed_point_subcolumns" ]]; then
   tile_rows=$((BLOCK * ITEMS_PER_THREAD * 16))
@@ -173,9 +158,7 @@ else
     printf 'iters=%s\n' "$ITERS"
   } > "$setup_file"
 fi
-
 bin="$BUILD_DIR/bench_progressive_aggregation"
-
 if [[ "$EXP3_SKIP_BUILD" == "1" ]]; then
   if [[ ! -f "$bin" || ! -x "$bin" ]]; then
     echo "error: EXP3_SKIP_BUILD=1 but $bin not found or not executable" >&2
@@ -202,7 +185,6 @@ exp3_cmd=(
   --warmup "$WARMUP" --iters "$ITERS"
   --csv "$benchmark_csv"
 )
-
 if [[ "$MODE" == "synthetic_fixed_point_subcolumns" ]]; then
   exp3_cmd+=(
     --n "$N"
@@ -213,13 +195,10 @@ else
   exp3_cmd+=(--encoded-root "$ENCODED_ROOT")
   exp3_cmd+=(--real_kernel_variant "$REAL_KERNEL_VARIANT")
 fi
-
 if [[ "${VALIDATE:-0}" == "1" || "${VALIDATE:-false}" == "true" ]]; then
   exp3_cmd+=(--validate)
 fi
-
 "${exp3_cmd[@]}"
-
 if [[ "$MODE" == "encoded_dev_subcolumns" ]]; then
   kernel_path="runtime_rowpack16"
   if [[ "$REAL_KERNEL_VARIANT" == "specialized" ]]; then
@@ -227,11 +206,9 @@ if [[ "$MODE" == "encoded_dev_subcolumns" ]]; then
   fi
   python3 - "$benchmark_csv" "$final_csv" "$gpu_tag" "$kernel_path" "$ARTIFACT_VERSION" "$ARTIFACT_LABEL" "$PRECISION_POWER" "$ENCODED_ROOT" "$SUM_REFERENCE_DOMAIN" <<'PY'
 from __future__ import annotations
-
 import csv
 import sys
 from pathlib import Path
-
 raw_csv = Path(sys.argv[1])
 final_csv = Path(sys.argv[2])
 gpu_tag = sys.argv[3]
@@ -241,30 +218,21 @@ artifact_label = sys.argv[6] if len(sys.argv) > 6 else ""
 precision_power = sys.argv[7] if len(sys.argv) > 7 else ""
 encoded_root = sys.argv[8] if len(sys.argv) > 8 else ""
 sum_reference_domain = sys.argv[9] if len(sys.argv) > 9 else ""
-
 with raw_csv.open(newline="") as f:
     rows = list(csv.DictReader(f))
-
 if not rows:
     raise SystemExit(f"no rows found in {raw_csv}")
-
-
 def normalized_field(row: dict[str, str], key: str) -> str:
     value = row.get(key)
     if value is None:
         return ""
     return value.strip()
-
-
 def resolved_kernel_path(row: dict[str, str], fallback: str) -> str:
     raw = normalized_field(row, "kernel_path")
     return raw or fallback
-
-
 def resolved_gpu_tag(row: dict[str, str], fallback: str) -> str:
     raw = normalized_field(row, "gpu_tag")
     return raw or fallback
-
 fieldnames = [
     "experiment",
     "dataset",
@@ -305,7 +273,6 @@ fieldnames = [
     "encoded_root",
     "sum_reference_domain",
 ]
-
 with final_csv.open("w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
     writer.writeheader()
@@ -359,7 +326,6 @@ PY
 else
   mv "$benchmark_csv" "$final_csv"
 fi
-
 meta_file="$run_dir/run_meta.txt"
 {
   printf 'run_description=%s\n' "$run_desc"
@@ -390,12 +356,10 @@ meta_file="$run_dir/run_meta.txt"
   printf 'sum_reference_domain=%s\n' "$SUM_REFERENCE_DOMAIN"
   printf 'command_exp3=%s\n' "$(join_cmd "${exp3_cmd[@]}")"
 } > "$meta_file"
-
 {
   printf 'cd %q\n' "$ROOT_DIR"
   printf '%s\n' "$(join_cmd "${exp3_cmd[@]}")"
 } > "$run_dir/repro_command.txt"
-
 {
   printf '# Adjust metrics and output path as needed.\n'
   printf 'cd %q\n' "$ROOT_DIR"
@@ -409,7 +373,6 @@ meta_file="$run_dir/run_meta.txt"
       "$run_dir/ncu_exp3_depths" "$(join_cmd "$bin" --device "$DEVICE" --mode "$MODE" --encoded-root "$ENCODED_ROOT" --real_kernel_variant "$REAL_KERNEL_VARIANT" --refine_min "$REFINE_MIN" --refine_max "$REFINE_MAX" --load_strategy "$LOAD_STRATEGY" --block "$BLOCK" --items_per_thread "$ITEMS_PER_THREAD" --warmup 0 --iters 1 --csv "$run_dir/exp3_ncu.csv")"
   fi
 } > "$run_dir/ncu_command_template.txt"
-
 printf 'exp3 outputs in: %s\n' "$run_dir"
 printf 'benchmark csv: %s\n' "$benchmark_csv"
 printf 'final csv: %s\n' "$final_csv"

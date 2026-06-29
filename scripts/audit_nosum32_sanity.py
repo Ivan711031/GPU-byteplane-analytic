@@ -600,7 +600,7 @@ def audit_3b_F8_breakdown(artifact_dir: Path, dataset: str, n_rows: int):
 
 def main():
     # Use actual dataset for audits 1 and 3
-    base = Path("/work/u4063895/datasets/locality_sensitivity")
+    base = Path("${WORK_DIR}/datasets/locality_sensitivity")
     dataset = "hurricane_u"
     artifact_dir = base / dataset / "seg4096"
     n_rows = 5000000  # match the actual pilot experiment

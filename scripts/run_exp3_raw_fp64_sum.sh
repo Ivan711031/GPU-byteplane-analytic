@@ -8,9 +8,7 @@
 #SBATCH --time=00:45:00
 #SBATCH --output=logs/exp3_raw_fp64_sum_%j.log
 #SBATCH --error=logs/exp3_raw_fp64_sum_%j.err
-
 set -euo pipefail
-
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   ROOT_DIR="$SLURM_SUBMIT_DIR"
 else
@@ -20,9 +18,7 @@ JOB_ID="${SLURM_JOB_ID:-nojob}"
 RUN_BASE="$ROOT_DIR/results/exp3_raw_fp64_sum_baseline"
 RUN_DIR="$RUN_BASE/run_$(date +%Y%m%d_%H%M%S)_job${JOB_ID}_H200"
 JOB_MARKER_DIR="$ROOT_DIR/handoff/job_done"
-
 mkdir -p "$ROOT_DIR/logs" "$JOB_MARKER_DIR" "$RUN_DIR"
-
 write_marker() {
   local exit_code="$1"
   local marker_file="$JOB_MARKER_DIR/job_${JOB_ID}.json"
@@ -42,13 +38,10 @@ write_marker() {
 }
 EOF
 }
-
 trap 'write_marker $?' EXIT
-
 echo "[$(date)] [exp3-raw] H200 hardware gate"
 nvidia-smi --query-gpu=name --format=csv,noheader | grep -q H200 || exit 2
 gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)"
-
 echo "[$(date)] [exp3-raw] toolchain check"
 module load miniconda3/26.1.1 cuda/12.6
 eval "$(conda shell.bash hook)"
@@ -57,36 +50,28 @@ export CUDACXX="$(command -v nvcc)"
 which nvcc
 cmake --version
 gcc --version | head -n 1
-
 BUILD_DIR="$ROOT_DIR/build/exp3"
 cmake -S "$ROOT_DIR/benchmarks/experiment3" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90 >/dev/null
 cmake --build "$BUILD_DIR" --target bench_raw_fp64_sum -j >/dev/null
-
 BIN="$BUILD_DIR/bench_raw_fp64_sum"
 if [[ ! -x "$BIN" ]]; then
   echo "ERROR: raw FP64 SUM binary not found: $BIN" >&2
   exit 1
 fi
-
 DATA_ROOT="/work/$USER/datasets/synthetic/dev"
 datasets=(heavy_tailed sensor uniform zipfian)
-
 cat > "$RUN_DIR/README.md" << EOF
 # PV1-6 Raw FP64 SUM Comparator
-
 Job ID: ${JOB_ID}
 GPU: H200
 Binary: ${BIN}
 Datasets: ${datasets[*]}
-
 This run measures raw FP64 SUM throughput directly on the dataset-matched
 synthetic dev inputs and is used as the raw comparator for fixed-depth encoded
 SUM and progressive encoded SUM.
-
 The estimated physical throughput column is set equal to logical throughput by
 convention for this comparator. It is not profiler-backed HBM traffic.
 EOF
-
 {
   printf 'run_description=raw_fp64_sum comparator for dataset-matched synthetic dev inputs\n'
   printf 'job_id=%s\n' "$JOB_ID"
@@ -97,14 +82,12 @@ EOF
   printf 'data_root=%s\n' "$DATA_ROOT"
   printf 'datasets=%s\n' "${datasets[*]}"
 } > "$RUN_DIR/run_meta.txt"
-
 cat > "$RUN_DIR/repro_command.txt" << EOF
 cd ${ROOT_DIR}
 for ds in ${datasets[*]}; do
   ${BIN} --device 0 --input /work/\$USER/datasets/synthetic/dev/\${ds}.f64le.bin --dataset \${ds} --block 256 --grid_mul 1 --warmup 10 --iters 200 --validate --csv ${RUN_DIR}/raw_fp64_sum_\${ds}.csv
 done
 EOF
-
 per_dataset_csvs=()
 for ds in "${datasets[@]}"; do
   input_path="$DATA_ROOT/${ds}.f64le.bin"
@@ -122,19 +105,15 @@ for ds in "${datasets[@]}"; do
     --csv "$out_csv"
   per_dataset_csvs+=("$out_csv")
 done
-
 final_csv="$RUN_DIR/raw_fp64_sum_baseline.csv"
 python3 - "$RUN_DIR" "$final_csv" "${per_dataset_csvs[@]}" <<'PY'
 from __future__ import annotations
-
 import csv
 import sys
 from pathlib import Path
-
 run_dir = Path(sys.argv[1])
 final_csv = Path(sys.argv[2])
 source_csvs = [Path(p) for p in sys.argv[3:]]
-
 rows = []
 for source_csv in source_csvs:
     with source_csv.open(newline="") as f:
@@ -161,12 +140,10 @@ for source_csv in source_csvs:
         "source_csv": str(source_csv),
         "notes": "raw fp64 sum comparator; estimated_physical_GBps equals logical_GBps by convention only",
     })
-
 fieldnames = list(rows[0].keys())
 with final_csv.open("w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(rows)
 PY
-
 echo "[$(date)] [exp3-raw] final CSV: $final_csv"

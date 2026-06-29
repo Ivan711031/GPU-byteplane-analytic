@@ -53,7 +53,7 @@ EXPECTED: list[tuple[str, str, int]] = [
     ("zipfian", "p8", 8),
 ]
 
-ARTIFACT_ROOT = Path("/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p")
+ARTIFACT_ROOT = Path("${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p")
 OUT_DIR = Path("results/exp3_v2_sum_precision")
 ARTIFACT_VERSION = "v2_2026-05-10"
 

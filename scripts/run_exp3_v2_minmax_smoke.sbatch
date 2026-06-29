@@ -13,9 +13,7 @@
 # Sweeps all refinement depths for 4 representative datasets.
 # Do NOT submit directly. Provide --account on sbatch command line.
 #   sbatch --account=<PROJECT> scripts/run_exp3_v2_minmax_smoke.sbatch
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
@@ -25,18 +23,15 @@ else
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RESULTS_BASE_REL="results/exp3_v2_minmax_smoke"
 RUN_DIR="${ROOT_DIR}/${RESULTS_BASE_REL}/run_${TIMESTAMP}_job${JOB_ID}_H200"
 LOG_DIR="${ROOT_DIR}/logs"
 MARKER_DIR="${ROOT_DIR}/handoff/job_done"
-
-V2_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
+V2_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
 BUILD_DIR="${ROOT_DIR}/build/exp3"
 BIN="${BUILD_DIR}/bench_progressive_aggregation"
-
 # Smoke set: 4 representative datasets
 DATASETS=(
   "heavy_tailed_p6"
@@ -44,7 +39,6 @@ DATASETS=(
   "uniform_p10"
   "zipfian_p8"
 )
-
 # ---------------------------------------------------------------------------
 # Completion marker via trap
 # ---------------------------------------------------------------------------
@@ -66,11 +60,8 @@ write_marker() {
 EOF
 }
 trap 'write_marker $?' EXIT
-
 echo "[$(date)] [exp3-v2-minmax-smoke] job ${JOB_ID} started"
-
 mkdir -p "$LOG_DIR" "$MARKER_DIR" "$RUN_DIR"
-
 # ---------------------------------------------------------------------------
 # Hardware gate: abort immediately if not H200
 # ---------------------------------------------------------------------------
@@ -82,7 +73,6 @@ case "$GPU_NAME" in
     exit 2
     ;;
 esac
-
 # ---------------------------------------------------------------------------
 # Environment: modules & conda
 # ---------------------------------------------------------------------------
@@ -91,17 +81,14 @@ if command -v module >/dev/null 2>&1; then
   module load miniconda3/26.1.1 || true
   module load cuda/12.6 || true
 fi
-
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook)"
   conda activate gpu-byteplane-scan
 fi
-
 # ---------------------------------------------------------------------------
 # Toolchain verification
 # ---------------------------------------------------------------------------
 echo "[$(date)] toolchain: nvcc=$(which nvcc) cmake=$(cmake --version | head -n1) gcc=$(gcc --version | head -n1)"
-
 # ---------------------------------------------------------------------------
 # Build benchmark binary
 # ---------------------------------------------------------------------------
@@ -109,12 +96,10 @@ echo "[$(date)] building Exp3 benchmark"
 cmake -S "${ROOT_DIR}/benchmarks/experiment3" -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
 cmake --build "$BUILD_DIR" -j
-
 if [[ ! -x "$BIN" ]]; then
   echo "ERROR: binary not found: $BIN" >&2
   exit 1
 fi
-
 # ---------------------------------------------------------------------------
 # Run meta
 # ---------------------------------------------------------------------------
@@ -136,23 +121,19 @@ fi
   gcc --version 2>/dev/null | head -n 1 || true
   echo "cuda_end"
 } > "${RUN_DIR}/run_meta.txt"
-
 # ---------------------------------------------------------------------------
 # Run MIN/MAX sweep for each dataset
 # ---------------------------------------------------------------------------
 for ds in "${DATASETS[@]}"; do
   ENCODED_ROOT="${V2_ROOT}/${ds}"
   CSV_PATH="${RUN_DIR}/exp3_v2_minmax_${ds}.csv"
-
   if [[ ! -d "$ENCODED_ROOT" ]]; then
     echo "WARNING: dataset directory not found: $ENCODED_ROOT, skipping" >&2
     continue
   fi
-
   # Determine max_plane_count from manifest
   MAX_PLANES="$(python3 -c "import json; m=json.load(open('${ENCODED_ROOT}/manifest.json')); print(m['max_plane_count'])")"
   REFINE_MAX=$((MAX_PLANES - 1))
-
   echo "[$(date)] running MIN/MAX sweep for ${ds} (k=0..${REFINE_MAX})"
   "$BIN" \
     --device 0 \
@@ -169,9 +150,7 @@ for ds in "${DATASETS[@]}"; do
     --iters 100 \
     --validate \
     --csv "$CSV_PATH"
-
   echo "[$(date)] ${ds} complete. Results: ${CSV_PATH}"
   ls -lh "$CSV_PATH"
 done
-
 echo "[$(date)] all MIN/MAX smoke tests complete. Results in: ${RUN_DIR}"

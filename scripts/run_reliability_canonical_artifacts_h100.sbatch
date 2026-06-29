@@ -5,42 +5,34 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=120G
 #SBATCH --time=01:00:00
-#SBATCH --output=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_canonical_artifacts_h100_%j.log
-#SBATCH --error=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_canonical_artifacts_h100_%j.err
+#SBATCH --output=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_canonical_artifacts_h100_%j.log
+#SBATCH --error=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_canonical_artifacts_h100_%j.err
 set -euo pipefail
-
 ROOT_DIR="${ROOT_DIR:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
 cd "$ROOT_DIR"
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 echo "Job $JOB_ID started on $(hostname)"
-
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ')
 [[ "$GPU_NAME" == *"H100"* ]] || { echo "Not H100: $GPU_NAME"; exit 2; }
 echo "H100: $GPU_NAME"
-
 BUILD_DIR="$ROOT_DIR/build/reliability_layer1_job${JOB_ID}"
 SYNTH_BIN="$BUILD_DIR/synth_datasets"
 mkdir -p "$BUILD_DIR"
 gcc -O3 -lm -o "$SYNTH_BIN" "$ROOT_DIR/buff_encoder/synth_datasets.c"
-
 echo "Disk: $(df -h /work | tail -1 | awk '{print $4}') available"
-
 python3 scripts/build_reliability_artifacts.py \
-  --raw-data-root /work/u4063895/datasets \
-  --artifact-root /work/u4063895/datasets/reliability_layer1 \
+  --raw-data-root ${WORK_DIR}/datasets \
+  --artifact-root ${WORK_DIR}/datasets/reliability_layer1 \
   --datasets sensor uniform heavy_tailed zipfian \
   --n-rows 100000000 \
   --scale 100 \
   --seed 20260413 \
   --synth-bin "$SYNTH_BIN"
-
 echo "Artifacts done. Listing sizes:"
-du -sh /work/u4063895/datasets/reliability_layer1/artifacts/*/
-
-RELIABILITY_ARTIFACT_ROOT="/work/u4063895/datasets/reliability_layer1"
+du -sh ${WORK_DIR}/datasets/reliability_layer1/artifacts/*/
+RELIABILITY_ARTIFACT_ROOT="${WORK_DIR}/datasets/reliability_layer1"
 N=100000000
 SCALE=100
-
 echo "Generating fault plans..."
 for DS in sensor uniform heavy_tailed zipfian; do
   for PLANE in 0 1 2 3 4 5 6 7; do
@@ -84,10 +76,8 @@ with open('$FP_PATH', 'w') as f:
   done
   echo " $DS done"
 done
-
 echo "ALL DONE: $(find "$RELIABILITY_ARTIFACT_ROOT/fault_plans" -name '*.json' | wc -l) fault plans"
 echo "Disk: $(df -h /work | tail -1 | awk '{print $4}') available"
-
 python3 -c "
 import json
 from pathlib import Path

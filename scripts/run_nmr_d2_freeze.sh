@@ -5,21 +5,17 @@
 #
 # Generates protection maps, runs stochastic evaluation, claim matrix,
 # and normalizer sanity for the D2 graded-vs-uniform freeze.
-
 set -euo pipefail
-
-BASE_DIR="/work/u4063895/datasets/locality_sensitivity"
+BASE_DIR="${WORK_DIR}/datasets/locality_sensitivity"
 OUT_DIR="results/v1_3_freeze/d2_allocation"
 SCRIPTS_DIR="scripts"
 SEEDS="0 1 2"
 FAULT_RATES="2e-5 2e-4"
 POLICIES="graded_seg_B3 uniform_spread_seg_B3"
 NORMALIZER_BRANCH="main"
-
 mkdir -p "$OUT_DIR/stochastic"
 mkdir -p "$OUT_DIR/claim"
 mkdir -p "$OUT_DIR/normalizer"
-
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 JOB_ID=${SLURM_JOB_ID:-local}
 echo "=== NMR-D2 Freeze Runner ==="
@@ -29,12 +25,10 @@ echo "Host: $(hostname)"
 echo "Git commit: $(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
 echo "Git branch: $(git branch --show-current 2>/dev/null || echo 'unknown')"
 echo ""
-
 # ---- Dataset sweep ----
 # Protection maps are auto-generated per-dataset by nmr_d2_stochastic.py
 # with the correct n_segments for each dataset's n_rows.
 echo "=== Stochastic evaluation ==="
-
 run_dataset() {
     local DATASET=$1
     local N_ROWS=$2
@@ -44,9 +38,7 @@ run_dataset() {
     local CLAIM_OUT_DIR="$OUT_DIR/claim/$DATASET"
     local NORM_OUT_DIR="$OUT_DIR/normalizer/$DATASET"
     local PMAP_DIR="$OUT_DIR/protection_maps/$DATASET"
-
     echo "--- Dataset: $DATASET (n_rows=$N_ROWS) ---"
-
     python3 "$SCRIPTS_DIR/nmr_d2_stochastic.py" \
         --protection-map-dir "$PMAP_DIR" \
         --clean-plane-dir "$PLANE_DIR" \
@@ -56,17 +48,13 @@ run_dataset() {
         --seeds $SEEDS \
         --mode plane_uniform \
         --output "$STOCH_OUT"
-
     echo ""
-
     echo "--- Claim matrix: $DATASET ---"
     python3 "$SCRIPTS_DIR/nmr_d2_claim_matrix.py" \
         --stochastic-results "$STOCH_OUT" \
         --policies ${POLICIES} \
         --output-dir "$CLAIM_OUT_DIR"
-
     echo ""
-
     echo "--- Normalizer sanity: $DATASET ---"
     python3 "$SCRIPTS_DIR/validate_nmr_d2_normalizer.py" \
         --stochastic-csv "$STOCH_OUT" \
@@ -74,16 +62,12 @@ run_dataset() {
         --manifest "$MANIFEST" \
         --n-rows "$N_ROWS" \
         --output-dir "$NORM_OUT_DIR"
-
     echo ""
 }
-
 # hurricane_u: 25M rows
 run_dataset "hurricane_u" 25000000
-
 # cesm_atm_cloud: 168M rows
 run_dataset "cesm_atm_cloud" 168480000
-
 echo "=== Write handoff marker ==="
 HANDOFF_DIR="handoff/job_done"
 mkdir -p "$HANDOFF_DIR"
@@ -104,7 +88,6 @@ cat > "$HANDOFF_DIR/job_${JOB_ID}.json" << EOF
 }
 EOF
 echo "  Handoff marker: $HANDOFF_DIR/job_${JOB_ID}.json"
-
 echo ""
 echo "=== DONE ==="
 ls -lh "$OUT_DIR/stochastic/"

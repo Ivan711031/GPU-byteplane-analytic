@@ -72,7 +72,7 @@ def run_cpu_oracle(n_rows: int = 1000000, fault_rate: float = 1e-6,
     # Also load real data if available
     real_artifacts: list[tuple[str, bytes]] = []
     for ds_name, ds_path in [
-        ("hurricane_u", "/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096"),
+        ("hurricane_u", "${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096"),
     ]:
         p = Path(ds_path)
         if p.exists():

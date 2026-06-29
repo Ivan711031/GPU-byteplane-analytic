@@ -7,7 +7,7 @@ Runs the H200 preflight subset defined in PRD §6.6:
   = 576 queries (384 without CESM-ATM Q)
 
 Output:
-  /work/u4063895/results/reliability_layer1/phase3/p3d_h200_preflight/<run_id>/
+  ${WORK_DIR}/results/reliability_layer1/phase3/p3d_h200_preflight/<run_id>/
 """
 
 from __future__ import annotations
@@ -28,9 +28,9 @@ from typing import Any
 
 import numpy as np
 
-RESULTS_ROOT = Path("/work/u4063895/results/reliability_layer1/phase3/p3d_h200_preflight")
-ARTIFACT_ROOT = Path("/work/u4063895/datasets/reliability_layer1/artifacts")
-RAW_ROOT = Path("/work/u4063895/datasets/reliability_layer1/raw")
+RESULTS_ROOT = Path("${WORK_DIR}/results/reliability_layer1/phase3/p3d_h200_preflight")
+ARTIFACT_ROOT = Path("${WORK_DIR}/datasets/reliability_layer1/artifacts")
+RAW_ROOT = Path("${WORK_DIR}/datasets/reliability_layer1/raw")
 
 N_TOTAL_PLANES = 8
 PLANE_WEIGHTS_MSB = [1 << (56 - 8 * p) for p in range(N_TOTAL_PLANES)]

@@ -503,19 +503,19 @@ def main() -> None:
         hurricane_path = os.environ.get("HURRICANE_U_ARTIFACT_DIR",
             str(workspace / "results/hurricane_artifact_placeholder"))
 
-    # If CLI paths don't exist, try known nano4 paths as last resort
+    # If CLI paths don't exist, try known CLUSTER_HOST paths as last resort
     if not Path(cesm_path).exists():
         for fallback in [
-            "/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg_global",
-            "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12",
+            "${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg_global",
+            "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12",
         ]:
             if Path(fallback).exists():
                 cesm_path = fallback
                 break
     if not Path(hurricane_path).exists():
         for fallback in [
-            "/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg_global",
-            "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12",
+            "${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg_global",
+            "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12",
         ]:
             if Path(fallback).exists():
                 hurricane_path = fallback

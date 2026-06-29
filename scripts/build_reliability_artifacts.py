@@ -11,8 +11,8 @@ incrementally. Handles N=1e8 without OOM.
 
 Usage:
   python3 scripts/build_reliability_artifacts.py \
-    --raw-data-root /work/u4063895/datasets \
-    --artifact-root /work/u4063895/datasets/reliability_layer1 \
+    --raw-data-root ${WORK_DIR}/datasets \
+    --artifact-root ${WORK_DIR}/datasets/reliability_layer1 \
     --datasets sensor uniform heavy_tailed zipfian \
     --n-rows 100000000 \
     --scale 100 \

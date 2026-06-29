@@ -120,7 +120,7 @@ def main():
     roots = Path(
         os.environ.get(
             'RELIABILITY_ARTIFACT_ROOT',
-            '/work/u4063895/datasets/reliability_layer1'
+            '${WORK_DIR}/datasets/reliability_layer1'
         )
     )
 

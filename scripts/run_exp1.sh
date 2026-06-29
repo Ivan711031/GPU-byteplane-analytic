@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build/exp1}"
 RESULTS_BASE="${RESULTS_BASE:-$ROOT_DIR/results/exp1}"
-
 DEVICE="${DEVICE:-0}"
 N="${N:-100000000}"
 PLANE_BYTES="${PLANE_BYTES:-1}"
@@ -17,11 +15,9 @@ GRID_MUL="${GRID_MUL:-1}"
 WARMUP="${WARMUP:-10}"
 ITERS="${ITERS:-1000}"
 CUDA_ARCH="${CUDA_ARCH:-90}"
-
 join_cmd() {
   printf '%q ' "$@"
 }
-
 detect_gpu_name() {
   if command -v nvidia-smi >/dev/null 2>&1; then
     local name
@@ -35,7 +31,6 @@ detect_gpu_name() {
   fi
   printf 'unknown_gpu\n'
 }
-
 normalize_gpu_tag() {
   local raw="$1"
   local upper cleaned
@@ -54,7 +49,6 @@ normalize_gpu_tag() {
   fi
   printf '%s\n' "$cleaned"
 }
-
 git_branch="unknown"
 git_commit="unknown"
 git_dirty="unknown"
@@ -67,14 +61,12 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_dirty="dirty"
   fi
 fi
-
 timestamp="$(date +%Y%m%d_%H%M%S)"
 job_id="${SLURM_JOB_ID:-nojob}"
 gpu_name="${GPU_NAME_OVERRIDE:-$(detect_gpu_name)}"
 gpu_tag="$(normalize_gpu_tag "$gpu_name")"
 run_dir="$RESULTS_BASE/run_${timestamp}_job${job_id}_${gpu_tag}"
 run_desc="${RUN_DESC:-"No description provided for this run."}"
-
 cleanup_failed_run() {
   local status=$?
   if [[ $status -ne 0 && -n "${run_dir:-}" && -d "${run_dir}" ]]; then
@@ -83,20 +75,16 @@ cleanup_failed_run() {
   fi
 }
 trap cleanup_failed_run EXIT
-
 mkdir -p "$run_dir"
-
 if [[ "$PLANE_BYTES" != "1" && "$PLANE_BYTES" != "2" ]]; then
   echo "error: PLANE_BYTES must be 1 or 2, got: $PLANE_BYTES" >&2
   exit 2
 fi
-
 if [[ "$PLANE_BYTES" == "1" ]]; then
   total_planes=8
 else
   total_planes=4
 fi
-
 byte_variant_args=()
 if [[ "$STRATEGY" == "byte" && "$PLANE_BYTES" == "1" ]]; then
   byte_variant_args=(--byte_variant "$BYTE_VARIANT")
@@ -104,10 +92,8 @@ elif [[ "$BYTE_VARIANT" != "baseline" ]]; then
   echo "error: BYTE_VARIANT only applies when STRATEGY=byte and PLANE_BYTES=1" >&2
   exit 2
 fi
-
 plane_alloc_bytes=$((N * PLANE_BYTES * total_planes))
 pointer_array_bytes=$((total_planes * 8))
-
 setup_file="$run_dir/setup_estimate.txt"
 {
   printf 'n=%s\n' "$N"
@@ -117,17 +103,14 @@ setup_file="$run_dir/setup_estimate.txt"
   printf 'estimated_pointer_array_bytes=%s\n' "$pointer_array_bytes"
   printf 'notes=d_out_allocation_depends_on_runtime_occupancy_grid\n'
 } > "$setup_file"
-
 cmake_args=(
   -S "$ROOT_DIR/benchmarks/experiment1"
   -B "$BUILD_DIR"
   -DCMAKE_BUILD_TYPE=Release
   "-DCMAKE_CUDA_ARCHITECTURES=$CUDA_ARCH"
 )
-
 cmake "${cmake_args[@]}"
 cmake --build "$BUILD_DIR" -j
-
 bin="$BUILD_DIR/bench_byteplane_scan"
 exp1_cmd=(
   "$bin"
@@ -141,9 +124,7 @@ exp1_cmd=(
   --warmup "$WARMUP" --iters "$ITERS"
   --csv "$run_dir/exp1.csv"
 )
-
 "${exp1_cmd[@]}"
-
 meta_file="$run_dir/run_meta.txt"
 {
   printf 'run_description=%s\n' "$run_desc"
@@ -165,12 +146,10 @@ meta_file="$run_dir/run_meta.txt"
   printf 'memory_setup_file=%s\n' "$setup_file"
   printf 'command_exp1=%s\n' "$(join_cmd "${exp1_cmd[@]}")"
 } > "$meta_file"
-
 {
   printf 'cd %q\n' "$ROOT_DIR"
   printf '%s\n' "$(join_cmd "${exp1_cmd[@]}")"
 } > "$run_dir/repro_command.txt"
-
 {
   printf '# Adjust metrics and output path as needed.\n'
   printf 'cd %q\n' "$ROOT_DIR"
@@ -178,7 +157,6 @@ meta_file="$run_dir/run_meta.txt"
     "$ROOT_DIR" \
     "$run_dir/ncu_exp1" "$(join_cmd "$bin" --device "$DEVICE" --n "$N" --plane_bytes "$PLANE_BYTES" --strategy "$STRATEGY" "${byte_variant_args[@]}" --k_min "$K_MIN" --k_max "$K_MAX" --block "$BLOCK" --grid_mul "$GRID_MUL" --warmup "$WARMUP" --iters "$ITERS" --csv "$run_dir/exp1_ncu.csv")"
 } > "$run_dir/ncu_command_template.txt"
-
 printf 'exp1 outputs in: %s\n' "$run_dir"
 printf 'setup summary: %s\n' "$setup_file"
 printf 'metadata: %s\n' "$meta_file"

@@ -17,7 +17,7 @@ Usage:
   # production: both primary fields, 30 seeds
   python3 scripts/phase4_nmr_d_claim1_evaluator.py \\
     --mode full --seeds 30 \\
-    --dataset-dir /work/u4063895/datasets/locality_sensitivity
+    --dataset-dir ${WORK_DIR}/datasets/locality_sensitivity
 
   # custom dataset path
   python3 scripts/phase4_nmr_d_claim1_evaluator.py \\
@@ -480,10 +480,10 @@ class NMRDClaim1Evaluator:
             return self.dataset_base_dir / dataset / "seg4096"
         # fallback to hardcoded paths
         paths = {
-            "cesm_atm_cloud": "/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
-            "hurricane_u": "/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096",
-            "cesm_atm_q": "/work/u4063895/datasets/locality_sensitivity/cesm_atm_q/seg4096",
-            "hurricane_tc": "/work/u4063895/datasets/locality_sensitivity/hurricane_tc/seg4096",
+            "cesm_atm_cloud": "${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
+            "hurricane_u": "${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096",
+            "cesm_atm_q": "${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_q/seg4096",
+            "hurricane_tc": "${WORK_DIR}/datasets/locality_sensitivity/hurricane_tc/seg4096",
         }
         return Path(paths[dataset])
 

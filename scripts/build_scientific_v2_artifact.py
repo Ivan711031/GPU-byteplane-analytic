@@ -849,42 +849,42 @@ def main() -> int:
         column_name = "CLOUD"
         column_semantics = "cloud fraction"
         column_unit = "fraction"
-        f32_path = Path("/work/u4063895/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/CLOUD_1_26_1800_3600.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/CLOUD_1_26_1800_3600.f32")
     elif args.dataset == "cesm_atm_q":
         dataset_key = "cesm_atm_q"
         dataset_display = "CESM-ATM Q (specific humidity)"
         column_name = "Q"
         column_semantics = "specific humidity"
         column_unit = "kg/kg"
-        f32_path = Path("/work/u4063895/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/Q_1_26_1800_3600.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/Q_1_26_1800_3600.f32")
     elif args.dataset == "cesm_atm_t":
         dataset_key = "cesm_atm_t"
         dataset_display = "CESM-ATM T (temperature)"
         column_name = "T"
         column_semantics = "air temperature"
         column_unit = "K"
-        f32_path = Path("/work/u4063895/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/T_1_26_1800_3600.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/SDRBENCH-CESM-ATM-26x1800x3600/T_1_26_1800_3600.f32")
     elif args.dataset == "hurricane_u":
         dataset_key = "hurricane_u"
         dataset_display = "Hurricane Isabel U"
         column_name = "U"
         column_semantics = "wind speed U component"
         column_unit = "m/s"
-        f32_path = Path("/work/u4063895/datasets/scientific/100x500x500/Uf48.bin.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/100x500x500/Uf48.bin.f32")
     elif args.dataset == "hurricane_tc":
         dataset_key = "hurricane_tc"
         dataset_display = "Hurricane Isabel TC (temperature)"
         column_name = "TC"
         column_semantics = "temperature in Celsius"
         column_unit = "degC"
-        f32_path = Path("/work/u4063895/datasets/scientific/100x500x500/TCf48.bin.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/100x500x500/TCf48.bin.f32")
     elif args.dataset == "hurricane_w":
         dataset_key = "hurricane_w"
         dataset_display = "Hurricane Isabel W (vertical velocity)"
         column_name = "W"
         column_semantics = "vertical wind velocity"
         column_unit = "m/s"
-        f32_path = Path("/work/u4063895/datasets/scientific/100x500x500/Wf48.bin.f32")
+        f32_path = Path("${WORK_DIR}/datasets/scientific/100x500x500/Wf48.bin.f32")
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")
 

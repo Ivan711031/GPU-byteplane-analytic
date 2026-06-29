@@ -9,7 +9,7 @@ from pathlib import Path
 from array import array
 
 
-ROOT = Path("/home/wsl/gpu-byteplane-scan-experiments")
+ROOT = Path("${PROJ_DIR}/gpu-byteplane-scan-experiments")
 RAW_ROOT = Path("/c/Users/Nick/Downloads/dev_full/dev")
 ART_ROOT = Path("/c/Users/Nick/Downloads/dataset_extracted/BUFF_DEV/exp_runtime_by_p")
 OUT_CSV = ROOT / "results/buff_encoder_v2/fidelity_audit.csv"

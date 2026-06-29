@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build/reliability_layer1}"
-RELIABILITY_RESULTS_ROOT="${RELIABILITY_RESULTS_ROOT:-/work/u4063895/results/reliability_layer1}"
+RELIABILITY_RESULTS_ROOT="${RELIABILITY_RESULTS_ROOT:-${WORK_DIR}/results/reliability_layer1}"
 RESULTS_BASE="${RESULTS_BASE:-$RELIABILITY_RESULTS_ROOT}"
-
 DEVICE="${DEVICE:-0}"
 N="${N:-1000}"
 BLOCK="${BLOCK:-256}"
@@ -14,11 +12,9 @@ CUDA_ARCH="${CUDA_ARCH:-90}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-}"
 FAULT_PLAN="${FAULT_PLAN:-}"
 RUN_CLEAN="${RUN_CLEAN:-1}"
-
 join_cmd() {
   printf '%q ' "$@"
 }
-
 detect_gpu_name() {
   if command -v nvidia-smi >/dev/null 2>&1; then
     local name
@@ -32,7 +28,6 @@ detect_gpu_name() {
   fi
   printf 'unknown_gpu\n'
 }
-
 normalize_gpu_tag() {
   local raw="$1"
   local upper cleaned
@@ -47,7 +42,6 @@ normalize_gpu_tag() {
   fi
   printf '%s\n' "$cleaned"
 }
-
 h200_fail_fast() {
   local name
   name="$(detect_gpu_name)"
@@ -56,7 +50,6 @@ h200_fail_fast() {
     exit 2
   fi
 }
-
 git_branch="unknown"
 git_commit="unknown"
 git_dirty="unknown"
@@ -69,14 +62,12 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_dirty="dirty"
   fi
 fi
-
 timestamp="$(date +%Y%m%d_%H%M%S)"
 job_id="${SLURM_JOB_ID:-nojob}"
 gpu_name="${GPU_NAME_OVERRIDE:-$(detect_gpu_name)}"
 gpu_tag="$(normalize_gpu_tag "$gpu_name")"
 run_dir="$RESULTS_BASE/run_${timestamp}_job${job_id}_${gpu_tag}"
 run_desc="${RUN_DESC:-"reliability layer1 tiny fixture (N=$N)"}"
-
 cleanup_failed_run() {
   local status=$?
   if [[ $status -ne 0 && -n "${run_dir:-}" && -d "${run_dir}" ]]; then
@@ -84,12 +75,9 @@ cleanup_failed_run() {
   fi
 }
 trap cleanup_failed_run EXIT
-
 mkdir -p "$run_dir"
-
 # Fail fast if not H200
 h200_fail_fast
-
 if [[ "$N" != "1000" ]]; then
   echo "error: reliability tiny fixture N must be 1000, got: $N" >&2
   exit 2
@@ -98,7 +86,6 @@ if [[ -z "$ARTIFACT_DIR" ]]; then
   echo "error: ARTIFACT_DIR is required" >&2
   exit 2
 fi
-
 setup_file="$run_dir/setup_estimate.txt"
 {
   printf 'n=%s\n' "$N"
@@ -108,20 +95,16 @@ setup_file="$run_dir/setup_estimate.txt"
   printf 'fault_plan=%s\n' "${FAULT_PLAN:-"(none)"}"
   printf 'run_clean=%s\n' "$RUN_CLEAN"
 } > "$setup_file"
-
 cmake_args=(
   -S "$ROOT_DIR/benchmarks/reliability_layer1"
   -B "$BUILD_DIR"
   -DCMAKE_BUILD_TYPE=Release
   "-DCMAKE_CUDA_ARCHITECTURES=$CUDA_ARCH"
 )
-
 cmake "${cmake_args[@]}"
 cmake --build "$BUILD_DIR" -j
-
 bin="$BUILD_DIR/bench_reliability_fixture"
 benchmark_csv="$run_dir/reliability_tiny.csv"
-
 rl_cmd=(
   "$bin"
   --device "$DEVICE"
@@ -131,16 +114,13 @@ rl_cmd=(
   --grid-mul "$GRID_MUL"
   --csv "$benchmark_csv"
 )
-
 if [[ "$RUN_CLEAN" == "1" ]]; then
   rl_cmd+=(--run-clean)
 fi
 if [[ -n "$FAULT_PLAN" ]]; then
   rl_cmd+=(--fault-plan "$FAULT_PLAN")
 fi
-
 "${rl_cmd[@]}"
-
 meta_file="$run_dir/run_meta.txt"
 {
   printf 'run_description=%s\n' "$run_desc"
@@ -155,11 +135,9 @@ meta_file="$run_dir/run_meta.txt"
   printf 'git_dirty=%s\n' "$git_dirty"
   printf 'command=%s\n' "$(join_cmd "${rl_cmd[@]}")"
 } > "$meta_file"
-
 {
   printf 'cd %q\n' "$ROOT_DIR"
   printf '%s\n' "$(join_cmd "${rl_cmd[@]}")"
 } > "$run_dir/repro_command.txt"
-
 printf 'reliability tiny outputs in: %s\n' "$run_dir"
 printf 'metadata: %s\n' "$meta_file"

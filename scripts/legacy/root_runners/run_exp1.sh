@@ -8,25 +8,20 @@
 #SBATCH --time=00:30:00
 #SBATCH --output=exp1_runner_%j.log
 #SBATCH --error=exp1_runner_%j.err
-
 set -euo pipefail
-
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   ROOT_DIR="$SLURM_SUBMIT_DIR"
 else
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   ROOT_DIR="$(cd "$script_dir/../../.." && pwd)"
 fi
-
 if [[ ! -f "$ROOT_DIR/scripts/run_exp1.sh" ]]; then
   echo "ERROR: Cannot locate canonical runner at $ROOT_DIR/scripts/run_exp1.sh" >&2
   exit 1
 fi
-
 module purge
 module load jupyter/miniconda3
 module load cuda/12.6
-
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook)"
 elif [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
@@ -35,8 +30,6 @@ else
   echo "conda not found. Please load miniconda module or fix conda.sh path." >&2
   exit 1
 fi
-
 conda activate gpu-byteplane-scan
-
 cd "$ROOT_DIR"
 "$ROOT_DIR/scripts/run_exp1.sh" "$@"

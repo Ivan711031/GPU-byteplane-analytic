@@ -327,7 +327,7 @@ def build_row(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-root", type=Path,
-                        default=Path("/work/u4063895/datasets/reliability_layer1"))
+                        default=Path("${WORK_DIR}/datasets/reliability_layer1"))
     parser.add_argument("--policy-catalogue", type=Path,
                         default=Path("results/policy_catalogue.json"))
     parser.add_argument("--params-json", type=Path,

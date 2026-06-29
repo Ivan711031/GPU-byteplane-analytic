@@ -9,9 +9,7 @@
 #SBATCH --job-name=loc_smoke
 #SBATCH --output=results/locality_sensitivity/smoke_gate_%j.out
 #SBATCH --error=results/locality_sensitivity/smoke_gate_%j.err
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # H200 fail-fast gate
 # ---------------------------------------------------------------------------
@@ -21,7 +19,6 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   exit 2
 fi
 echo "GPU: $GPU_NAME"
-
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
@@ -30,18 +27,15 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 ROOT_DIR="/home/$USER/workspace/gpu-byteplane-scan-experiments"
 if [[ ! -d "$ROOT_DIR" ]]; then
   echo "ERROR: ROOT_DIR not found: $ROOT_DIR" >&2
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # Ensure nvcc is in path
 which nvcc
 nvcc --version | head -2
-
 # ---------------------------------------------------------------------------
 # Build targets on compute node (H200 needs arch 90)
 # ---------------------------------------------------------------------------
@@ -52,40 +46,31 @@ cmake -S benchmarks/experiment4 -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -3
 cmake --build "$BUILD_DIR" --target byteplane_count_gt_cli -j$(nproc) 2>&1 | tail -5
 cmake --build "$BUILD_DIR" --target byteplane_count_gt_batch_cli -j$(nproc) 2>&1 | tail -5
-
 # ---------------------------------------------------------------------------
 # Result directory
 # ---------------------------------------------------------------------------
 RESULT_DIR="results/locality_sensitivity/smoke_gate_${SLURM_JOB_ID:-local}"
 mkdir -p "$RESULT_DIR"
-
 CLI="$ROOT_DIR/build_exp4/byteplane_count_gt_cli"
 BATCH_CLI="$ROOT_DIR/build_exp4/byteplane_count_gt_batch_cli"
-
 LOCALITY_ROOT="$ROOT_DIR/datasets/locality_sensitivity"
 HEAVY_RAW="/work/$USER/datasets/synthetic/dev/heavy_tailed.f64le.bin"
-
 # heavy_tailed 50% threshold
 THRESHOLD="0.9592570420373461"
-
 echo "=== Smoke Gate: Representation Locality Sensitivity ==="
 echo "GPU: $GPU_NAME"
 echo "Threshold (50%): $THRESHOLD"
 echo ""
-
 PASS=0
 FAIL=0
-
 for SEG in seg4096 seg16384 seg65536 seg_global; do
   ARTIFACT="$LOCALITY_ROOT/heavy_tailed/$SEG"
   echo "--- Testing: heavy_tailed/$SEG ---"
-
   if [[ ! -d "$ARTIFACT" ]]; then
     echo "FAIL: artifact dir missing: $ARTIFACT"
     FAIL=$((FAIL + 1))
     continue
   fi
-
   # Read max_plane_count from manifest
   MAX_K=$(python3 -c "
 import json
@@ -93,12 +78,9 @@ with open('${ARTIFACT}/manifest.json') as f:
     m = json.load(f)
 print(m['max_plane_count'])
 ")
-
   echo "  max_plane_count=$MAX_K"
-
   for K in 1 2 $MAX_K; do
     echo "  k=$K ..."
-
     # CPU fallback
     CPU_OUT="$RESULT_DIR/heavy_${SEG}_k${K}_cpu.json"
     $CLI \
@@ -110,7 +92,6 @@ print(m['max_plane_count'])
       > "$CPU_OUT" 2>&1
     RC=$?
     echo "    CPU k=$K exit=$RC"
-
     # GPU
     GPU_OUT="$RESULT_DIR/heavy_${SEG}_k${K}_gpu.json"
     $CLI \
@@ -122,7 +103,6 @@ print(m['max_plane_count'])
       > "$GPU_OUT" 2>&1
     RC=$?
     echo "    GPU k=$K exit=$RC"
-
     # Compare CPU vs GPU
     if [[ -f "$CPU_OUT" ]] && [[ -f "$GPU_OUT" ]]; then
       MISMATCH=$(python3 -c "
@@ -136,7 +116,6 @@ if bad:
 else:
     print('OK')
 " 2>&1)
-
       if [[ "$MISMATCH" == "OK" ]]; then
         GPU_Q=$(python3 -c "import json; print(json.load(open('$GPU_OUT'))['Q'])")
         GPU_D=$(python3 -c "import json; print(json.load(open('$GPU_OUT'))['D'])")
@@ -160,16 +139,13 @@ else:
   done
   echo ""
 done
-
 echo "========================"
 echo "Smoke Gate Results: PASS=$PASS FAIL=$FAIL"
 echo "========================"
-
 # Write smoke gate CSV
 SMOKE_CSV="results/locality_sensitivity/smoke/2026-05-21_Locality_Smoke_Gate.csv"
 python3 -c "
 import csv, json, os
-
 rows = []
 for seg in ['seg4096','seg16384','seg65536','seg_global']:
     for k_str in ['1','2','8']:
@@ -204,17 +180,14 @@ for seg in ['seg4096','seg16384','seg65536','seg_global']:
                 'prep_ms': '?',
                 'scan_ms': '?'
             })
-
 with open('$SMOKE_CSV', 'w', newline='') as f:
     w = csv.DictWriter(f, fieldnames=['representation','k','gpu_count','cpu_count','gpu_Q','gpu_D','gpu_U','match','prep_ms','scan_ms'])
     w.writeheader()
     w.writerows(rows)
 print(f'Smoke CSV written: $SMOKE_CSV ({len(rows)} rows)')
 "
-
 echo ""
 echo "=== Smoke gate complete ==="
-
 mkdir -p handoff/job_done
 MARKER="handoff/job_done/job_${SLURM_JOB_ID:-local}.json"
 cat > "$MARKER" <<EOF

@@ -5,44 +5,36 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=120G
 #SBATCH --time=01:00:00
-#SBATCH --output=/home/u4063895/workspace/gpu-byteplane-reliability-nmr/logs/rl_canonical_artifacts_%j.log
-#SBATCH --error=/home/u4063895/workspace/gpu-byteplane-reliability-nmr/logs/rl_canonical_artifacts_%j.err
+#SBATCH --output=${PROJ_DIR}/workspace/gpu-byteplane-reliability-nmr/logs/rl_canonical_artifacts_%j.log
+#SBATCH --error=${PROJ_DIR}/workspace/gpu-byteplane-reliability-nmr/logs/rl_canonical_artifacts_%j.err
 set -euo pipefail
-
-ROOT_DIR="/home/u4063895/workspace/gpu-byteplane-reliability-nmr"
+ROOT_DIR="${PROJ_DIR}/workspace/gpu-byteplane-reliability-nmr"
 cd "$ROOT_DIR"
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 echo "Job $JOB_ID started on $(hostname)"
-
 # Build synth_datasets
 gcc -O3 -lm -o buff_encoder/synth_datasets buff_encoder/synth_datasets.c
-
 # Check disk space
 echo "Disk: $(df -h /work | tail -1 | awk '{print $4}') available"
-
 # Generate all 4 datasets at N=1e8
 python3 scripts/build_reliability_artifacts.py \
-  --raw-data-root /work/u4063895/datasets \
-  --artifact-root /work/u4063895/datasets/reliability_layer1 \
+  --raw-data-root ${WORK_DIR}/datasets \
+  --artifact-root ${WORK_DIR}/datasets/reliability_layer1 \
   --datasets sensor uniform heavy_tailed zipfian \
   --n-rows 100000000 \
   --scale 100 \
   --seed 20260413
-
 echo "Artifacts done. Listing sizes:"
-du -sh /work/u4063895/datasets/reliability_layer1/artifacts/*/
-
+du -sh ${WORK_DIR}/datasets/reliability_layer1/artifacts/*/
 # Now generate fault plans for the canonical matrix
 # datasets=sensor,uniform,heavy_tailed,zipfian
 # target_planes=0..7
 # fault_rates=1e-8,1e-7,1e-6,1e-5,1e-4
 # seeds=0..29
-
-RELIABILITY_ARTIFACT_ROOT="/work/u4063895/datasets/reliability_layer1"
+RELIABILITY_ARTIFACT_ROOT="${WORK_DIR}/datasets/reliability_layer1"
 N=100000000
 SCALE=100
 SEED_BASE=20260413
-
 echo "Generating fault plans..."
 for DS in sensor uniform heavy_tailed zipfian; do
   for PLANE in 0 1 2 3 4 5 6 7; do
@@ -86,10 +78,8 @@ with open('$FP_PATH', 'w') as f:
   done
   echo " $DS done"
 done
-
 echo "ALL DONE: $(find $RELIABILITY_ARTIFACT_ROOT/fault_plans -name '*.json' | wc -l) fault plans"
 echo "Disk: $(df -h /work | tail -1 | awk '{print $4}') available"
-
 # ── Write inventory ──
 python3 -c "
 import json

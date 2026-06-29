@@ -5,19 +5,14 @@
 #SBATCH --time=01:00:00
 #SBATCH --output=results/slurm_exp4_export_bounded_%j.out
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
-PROJ_ROOT="/home/u4063895/workspace/gpu-byteplane-scan-experiments"
-DATA_ROOT="/work/u4063895/datasets/synthetic/dev"
-OUT_ROOT="/work/u4063895/datasets/synthetic"
+PROJ_ROOT="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments"
+DATA_ROOT="${WORK_DIR}/datasets/synthetic/dev"
+OUT_ROOT="${WORK_DIR}/datasets/synthetic"
 EXPORT_BIN="${PROJ_ROOT}/build/exp3/export_encoded_dev_layout"
-
 cd "${PROJ_ROOT}"
 mkdir -p results
-
 DATASETS=(uniform heavy_tailed sensor zipfian)
-
 echo "=== Exporting precision-decimals=3 => dev_buff_exp4_p3 ===" >&2
 mkdir -p "${OUT_ROOT}/dev_buff_exp4_p3"
 for ds in "${DATASETS[@]}"; do
@@ -27,7 +22,6 @@ for ds in "${DATASETS[@]}"; do
         --output-root "${OUT_ROOT}/dev_buff_exp4_p3" \
         --precision-decimals 3
 done
-
 echo "=== Exporting precision-decimals=6 => dev_buff_exp4_p6 ===" >&2
 mkdir -p "${OUT_ROOT}/dev_buff_exp4_p6"
 for ds in "${DATASETS[@]}"; do
@@ -37,9 +31,7 @@ for ds in "${DATASETS[@]}"; do
         --output-root "${OUT_ROOT}/dev_buff_exp4_p6" \
         --precision-decimals 6
 done
-
 echo "=== All exports complete ===" >&2
-
 # Completion marker
 MARKER_DIR="${PROJ_ROOT}/handoff/job_done"
 mkdir -p "${MARKER_DIR}"

@@ -28,7 +28,6 @@
 #     ncu_status.txt            — PASS/FAIL with reason
 #     run_meta.txt              — metadata
 #   handoff/job_done/job_<SLURM_JOB_ID>.json
-
 #SBATCH --job-name=exp4-ncu-unblock
 #SBATCH --partition=dev
 #SBATCH --nodes=1
@@ -37,9 +36,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
 # ==============================================================================
 # Dynamic workspace detection
 # ==============================================================================
@@ -53,29 +50,23 @@ if [[ ! -d "$ROOT_DIR" ]]; then
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # ==============================================================================
 # Paths (set up before trap so handoff marker knows where to write)
 # ==============================================================================
-V2_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
-RAW_ROOT="/work/u4063895/datasets/synthetic/dev"
-
+V2_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
+RAW_ROOT="${WORK_DIR}/datasets/synthetic/dev"
 dataset_name="uniform"
 artifact_p="p10"
 encoded_subdir="${dataset_name}_${artifact_p}"
 encoded_root="${V2_ROOT}/${encoded_subdir}"
 selectivity=50
-
 timestamp=$(date +%Y%m%d_%H%M%S)
 job_id="${SLURM_JOB_ID:-local}"
 GPU_TAG="unknown"
-
 handoff_dir="${ROOT_DIR}/handoff/job_done"
 handoff_marker="${handoff_dir}/job_${job_id}.json"
-
 # Global for NCU successful report path (set after NCU runs, read by trap)
 NCU_REPORT_SUCCESS=""
-
 # ==============================================================================
 # Handoff marker via trap (set before GPU validation so exit 2 also writes marker)
 # ==============================================================================
@@ -86,7 +77,6 @@ write_handoff_marker() {
   local ncu_status_str="not_run"
   local baseline_csv_path=""
   local result_dir_str=""
-
   if [[ -d "$run_dir" ]]; then
     result_dir_str="$run_dir"
     baseline_csv_path="${run_dir}/baseline.csv"
@@ -95,15 +85,12 @@ write_handoff_marker() {
       ncu_status_str=$(head -1 "${run_dir}/ncu_status.txt" 2>/dev/null || echo "unknown")
     fi
   fi
-
   local git_commit
   git_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-
   local next_action="Check ncu_status.txt and ncu_stdout.txt for kernel capture verification."
   if [[ "$status" -ne 0 ]]; then
     next_action="Job failed with exit code ${status}; investigate slurm output."
   fi
-
   mkdir -p "$handoff_dir"
   cat > "$handoff_marker" <<EOF
 {
@@ -122,7 +109,6 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 # ==============================================================================
 # GPU identification
 # ==============================================================================
@@ -132,10 +118,8 @@ if command -v nvidia-smi &>/dev/null; then
   GPU_TAG="${GPU_NAME// /_}"
   GPU_TAG="${GPU_TAG:-unknown}"
 fi
-
 # Create result dir name with GPU tag (before fail-fast so trap uses it)
 run_dir="${ROOT_DIR}/results/exp4/ncu_unblock_${timestamp}_job${job_id}_${GPU_TAG}"
-
 # ==============================================================================
 # Hardware validation: must be H200 (after trap so exit 2 still writes marker)
 # ==============================================================================
@@ -143,12 +127,10 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
-
 # ==============================================================================
 # Create output directories
 # ==============================================================================
 mkdir -p "$run_dir" "$handoff_dir"
-
 # ==============================================================================
 # Environment & modules
 # ==============================================================================
@@ -157,7 +139,6 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 # ==============================================================================
 # Toolchain verification
 # ==============================================================================
@@ -165,19 +146,17 @@ echo "=== Toolchain ===" >&2
 echo "nvcc: $(which nvcc) $($(which nvcc) --version 2>&1 | grep release)" >&2
 echo "gcc: $(gcc --version 2>&1 | head -1)" >&2
 echo "cmake: $(cmake --version 2>&1 | head -1)" >&2
-
 NCU_BIN=""
 if command -v ncu &>/dev/null; then
   NCU_BIN=$(which ncu)
-elif [[ -x /work/envstack/apps/cuda/12.6/bin/ncu ]]; then
-  NCU_BIN=/work/envstack/apps/cuda/12.6/bin/ncu
+elif [[ -x ${ENVSTACK_ROOT}/cuda/12.6/bin/ncu ]]; then
+  NCU_BIN=${ENVSTACK_ROOT}/cuda/12.6/bin/ncu
 fi
 if [[ -n "$NCU_BIN" ]]; then
   echo "ncu: $NCU_BIN $($NCU_BIN --version 2>&1 | head -1)" >&2
 else
   echo "WARNING: ncu not found in PATH or known locations" >&2
 fi
-
 # ==============================================================================
 # Job metadata
 # ==============================================================================
@@ -194,7 +173,6 @@ echo "=== Git ===" >&2
 git rev-parse HEAD >&2
 git status --short >&2
 echo "" >&2
-
 # ==============================================================================
 # Build
 # ==============================================================================
@@ -203,9 +181,7 @@ cmake -S benchmarks/experiment4 -B build/exp4 \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90 2>&1
 cmake --build build/exp4 -j 2>&1
 echo "" >&2
-
 BENCH_BIN="${ROOT_DIR}/build/exp4/bench_progressive_filter"
-
 # ==============================================================================
 # Verify artifact path
 # ==============================================================================
@@ -216,7 +192,6 @@ if [[ ! -d "$encoded_root" ]]; then
 fi
 echo "  ✓ $encoded_root" >&2
 echo "" >&2
-
 # ==============================================================================
 # Compute threshold from raw FP64
 # ==============================================================================
@@ -226,7 +201,6 @@ if [[ ! -f "$raw_path" ]]; then
   echo "ERROR: raw file not found: $raw_path" >&2
   exit 2
 fi
-
 quantile=$(python3 -c "print(1 - ${selectivity}/100.0)")
 threshold=$(python3 -c "
 import numpy as np
@@ -235,14 +209,12 @@ print(np.quantile(data, ${quantile}))
 ")
 echo "  threshold=${threshold} (quantile=${quantile})" >&2
 echo "" >&2
-
 # ==============================================================================
 # RUN 1: Baseline correctness (non-NCU) with --validate
 # ==============================================================================
 echo "=== Run 1: Baseline correctness (non-NCU) ===" >&2
 baseline_csv="${run_dir}/baseline.csv"
 baseline_log="${run_dir}/baseline.log"
-
 set +e
 "$BENCH_BIN" \
   --device 0 \
@@ -257,13 +229,11 @@ set +e
   2> "$baseline_log"
 baseline_rc=$?
 set -e
-
 echo "  Baseline exit code: ${baseline_rc}" >&2
 if [[ $baseline_rc -ne 0 ]]; then
   echo "  WARNING: baseline benchmark failed (exit=${baseline_rc})" >&2
   echo "  See: ${baseline_log}" >&2
 fi
-
 # Validate correctness gate from baseline CSV
 if [[ -f "$baseline_csv" ]]; then
   gpu_count=$(tail -1 "$baseline_csv" | cut -d',' -f12)
@@ -278,20 +248,16 @@ else
   echo "  WARNING: baseline CSV not created at ${baseline_csv}" >&2
 fi
 echo "" >&2
-
 # ==============================================================================
 # RUN 2: NCU profile with sufficient launches
 # ==============================================================================
 echo "=== Run 2: NCU profile ===" >&2
-
 ncu_stdout="${run_dir}/ncu_stdout.txt"
 ncu_stderr="${run_dir}/ncu_stderr.txt"
 : > "$ncu_stdout"
 : > "$ncu_stderr"
-
 ncu_passed=0
 ncu_fail_reason=""
-
 # --- Shared benchmark arguments for NCU ---
 ncu_bench_args=(
   "$BENCH_BIN"
@@ -305,7 +271,6 @@ ncu_bench_args=(
     --iters 20
     --csv "${run_dir}/ncu_bench.csv"
 )
-
 if [[ -z "$NCU_BIN" ]]; then
   echo "  NCU not available — skipping NCU run" >&2
   ncu_fail_reason="NCU binary not found"
@@ -317,7 +282,6 @@ else
   echo "  Attempt 1: --metrics (limited set)" >&2
   ncu1_export_base="${run_dir}/ncu_unblock"
   ncu1_report="${ncu1_export_base}.ncu-rep"
-
   set +e
   "$NCU_BIN" \
     --target-processes all \
@@ -337,7 +301,6 @@ smsp__sass_inst_executed_op_global_ld.sum \
     >> "$ncu_stdout" 2>> "$ncu_stderr"
   ncu1_rc=$?
   set -e
-
   # Check attempt 1
   if [[ -f "$ncu1_report" ]] && [[ -s "$ncu1_report" ]]; then
     if ! grep -q "No kernels were profiled" "$ncu_stdout" 2>/dev/null; then
@@ -346,16 +309,13 @@ smsp__sass_inst_executed_op_global_ld.sum \
       NCU_REPORT_SUCCESS="$ncu1_report"
     fi
   fi
-
   # -------------------------------------------------------------------
   # Attempt 2 (fallback): --set basic if attempt 1 failed
   # -------------------------------------------------------------------
   if [[ $ncu_passed -eq 0 ]]; then
     ncu2_export_base="${run_dir}/ncu_unblock_basic"
     ncu2_report="${ncu2_export_base}.ncu-rep"
-
     echo "  Attempt 1 did not capture kernels. Attempt 2: --set basic" >&2
-
     set +e
     "$NCU_BIN" \
       --target-processes all \
@@ -371,7 +331,6 @@ smsp__sass_inst_executed_op_global_ld.sum \
       >> "$ncu_stdout" 2>> "$ncu_stderr"
     ncu2_rc=$?
     set -e
-
     if [[ -f "$ncu2_report" ]] && [[ -s "$ncu2_report" ]]; then
       if ! grep -q "No kernels were profiled" "$ncu_stdout" 2>/dev/null; then
         echo "  ✓ Attempt 2 (--set basic) produced .ncu-rep ($(stat --printf='%s' "$ncu2_report") bytes)" >&2
@@ -379,13 +338,11 @@ smsp__sass_inst_executed_op_global_ld.sum \
         NCU_REPORT_SUCCESS="$ncu2_report"
       fi
     fi
-
     if [[ $ncu_passed -eq 0 ]]; then
       ncu_fail_reason="Both NCU attempts failed to capture kernels"
       echo "  ✗ ${ncu_fail_reason}" >&2
     fi
   fi
-
   # CSV export from whichever report succeeded
   if [[ $ncu_passed -eq 1 ]] && [[ -f "$NCU_REPORT_SUCCESS" ]]; then
     echo "  Exporting NCU CSV for inspection..." >&2
@@ -395,16 +352,13 @@ smsp__sass_inst_executed_op_global_ld.sum \
       -o "${NCU_REPORT_SUCCESS%.ncu-rep}.csv" \
       > /dev/null 2>> "$ncu_stderr" || true
   fi
-
   if [[ $ncu_passed -eq 1 ]]; then
     echo "PASS: NCU captured kernels (report: ${NCU_REPORT_SUCCESS})" > "${run_dir}/ncu_status.txt"
   else
     echo "FAIL: ${ncu_fail_reason}" > "${run_dir}/ncu_status.txt"
   fi
 fi
-
 echo "" >&2
-
 # ==============================================================================
 # run_meta.txt
 # ==============================================================================
@@ -466,9 +420,7 @@ echo "" >&2
   echo "  Verify that NCU can capture progressive_filter_rowpack16_passive kernels."
   echo "  Not for performance analysis."
 } > "${run_dir}/run_meta.txt"
-
 echo "Meta: ${run_dir}/run_meta.txt" >&2
-
 # ==============================================================================
 # Final summary
 # ==============================================================================
@@ -478,13 +430,11 @@ echo "NCU status file: ${run_dir}/ncu_status.txt" >&2
 if [[ -f "${run_dir}/ncu_status.txt" ]]; then
   cat "${run_dir}/ncu_status.txt" >&2
 fi
-
 # Exit with baseline RC if baseline failed; otherwise 0 (NCU failure is
 # informational in this smoke — we wrote ncu_status.txt for the handoff)
 if [[ $baseline_rc -ne 0 ]]; then
   echo "Baseline benchmark failed — exiting with RC=${baseline_rc}" >&2
   exit "${baseline_rc}"
 fi
-
 echo "✓ Exp4 NCU unblock smoke complete" >&2
 exit 0

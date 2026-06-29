@@ -7,16 +7,12 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=u4063895@gs.ncku.edu.tw
 #SBATCH -o slurm-%j.out
 #SBATCH -e slurm-%j.err
-
 set -euo pipefail
-
-WORKTREE_ROOT="/home/u4063895/workspace/gpu-byteplane-scan-experiments/.worktrees/issue-285-nmr-claim1-no-sum32"
+WORKTREE_ROOT="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments/.worktrees/WORKTREE"
 RESULTS_DIR="$WORKTREE_ROOT/results/reliability_layer1/claim1_nosum32_pilot_combinefix/job_${SLURM_JOB_ID}"
 cd "$WORKTREE_ROOT"
-
 echo "=== Job $SLURM_JOB_ID: ${DATASET} rates=${RATES} ==="
 echo "Worktree: $WORKTREE_ROOT"
 echo "Results:  $RESULTS_DIR"
@@ -24,17 +20,14 @@ echo "Git HEAD: $(git rev-parse HEAD)"
 echo "Start:    $(date -Iseconds)"
 echo "Host:     $(hostname)"
 echo
-
 RUNNER="$WORKTREE_ROOT/scripts/nmr_claim1_realistic_campaign.py"
 SEGMENT_SIZE=4096
 N_ROWS=5000000
-
 case "$DATASET" in
-    hurricane_u)   ARTIFACT="/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096" ;;
-    cesm_atm_cloud) ARTIFACT="/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096" ;;
+    hurricane_u)   ARTIFACT="${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096" ;;
+    cesm_atm_cloud) ARTIFACT="${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096" ;;
     *) echo "Unknown dataset: $DATASET"; exit 1 ;;
 esac
-
 echo ">>> Dataset: $DATASET rates=$RATES ($(date -Iseconds))"
 python -u "$RUNNER" \
     --artifact-dir "$ARTIFACT" \
@@ -48,10 +41,8 @@ python -u "$RUNNER" \
     --output-dir "$RESULTS_DIR/$DATASET"
 echo "<<< Done: $DATASET ($(date -Iseconds))"
 echo
-
 echo "=== Complete ==="
 echo "End:      $(date -Iseconds)"
-
 mkdir -p "$WORKTREE_ROOT/handoff/job_done"
 cat > "$WORKTREE_ROOT/handoff/job_done/job_${SLURM_JOB_ID}.json" <<EOF
 {

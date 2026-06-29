@@ -10,7 +10,7 @@ Usage:
     --rates 1e-7 1e-6 1e-5 \
     --seeds 0-14 \
     --replicas 4 3 3 3 3 3 3 3 \
-    --artifact-root /work/u4063895/datasets/reliability_layer1
+    --artifact-root ${WORK_DIR}/datasets/reliability_layer1
 """
 
 import argparse
@@ -95,7 +95,7 @@ def main():
     roots = args.artifact_root or Path(
         os.environ.get(
             'RELIABILITY_ARTIFACT_ROOT',
-            '/work/u4063895/datasets/reliability_layer1'
+            '${WORK_DIR}/datasets/reliability_layer1'
         )
     )
 

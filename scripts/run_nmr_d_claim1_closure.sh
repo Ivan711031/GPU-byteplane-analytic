@@ -5,39 +5,31 @@
 #SBATCH -t 0-02:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=slurm-%j.out
-
 set -euo pipefail
 export PYTHONUNBUFFERED=1
-
 echo "=== NMR-D: Claim-1 Closure (Graded vs Uniform Repair) ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 date
-
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
 echo "GPU: $GPU_NAME"
 if ! echo "$GPU_NAME" | grep -qi "H200"; then
   echo "FATAL: Expected H200, got $GPU_NAME"
   exit 2
 fi
-
 ml purge
 ml load miniconda3/26.1.1
 ml load cuda/12.6
 conda activate gpu-byteplane-scan
-
 echo "=== Toolchain ==="
 which python3
 python3 --version
-
 PROJECT_DIR=${SLURM_SUBMIT_DIR:-$(pwd)}
 SCRIPT_DIR="$PROJECT_DIR/scripts"
 RESULTS_DIR="$PROJECT_DIR/results/reliability_layer1/phase4/nmr_d_claim1_closure/job_${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
-
 echo "Project dir: $PROJECT_DIR"
 echo "Results dir: $RESULTS_DIR"
-
 echo
 echo "=== Smoke: deterministic + stochastic, 1 dataset, 500k rows ==="
 python3 "$SCRIPT_DIR/phase4_nmr_d_claim1_evaluator.py" \
@@ -45,7 +37,6 @@ python3 "$SCRIPT_DIR/phase4_nmr_d_claim1_evaluator.py" \
   --dataset cesm_atm_cloud \
   --seeds 5 \
   --n-rows 500000
-
 echo
 echo "=== Coverage manifest ==="
 COV="$RESULTS_DIR/nmr_d_coverage_manifest.csv"
@@ -62,7 +53,6 @@ if not fails:
     print('All coverage gates pass')
 "
 fi
-
 cat > "$RESULTS_DIR/job_marker.json" <<ENDJSON
 {
   "job_id": "$SLURM_JOB_ID",
@@ -75,7 +65,6 @@ cat > "$RESULTS_DIR/job_marker.json" <<ENDJSON
   "results_dir": "$RESULTS_DIR"
 }
 ENDJSON
-
 echo
 echo "=== NMR-D Claim-1 Complete ==="
 echo "Results: $RESULTS_DIR"

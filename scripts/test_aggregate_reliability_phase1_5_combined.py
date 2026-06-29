@@ -57,7 +57,7 @@ PARAMS_JSON = {
     "metadata": {
         "strategy_ids": ["native_scale1", "per_dataset",
                          "hybrid_scale100_plus_shifted"],
-        "source_raw_root": "/work/u4063895/datasets/reliability_layer1",
+        "source_raw_root": "${WORK_DIR}/datasets/reliability_layer1",
     },
     "strategies": {
         "native_scale1": {

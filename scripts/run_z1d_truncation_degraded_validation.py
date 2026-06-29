@@ -404,10 +404,10 @@ def build_truncation_schema(k_max: int) -> list[tuple[int, int]]:
 def main() -> None:
     datasets = [
         ("cesm_atm_cloud",
-         Path("/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096"),
+         Path("${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096"),
          24756224, 7),
         ("hurricane_u",
-         Path("/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096"),
+         Path("${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096"),
          0, 8),
     ]
 

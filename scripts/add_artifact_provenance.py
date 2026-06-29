@@ -6,10 +6,10 @@ provenance fields or delta_checksum in artifact.json.  This script
 re-processes the source raw data (one read pass) to compute those
 fields and updates artifact.json in-place.
 
-Usage (nano5):
+Usage (CLUSTER_HOST):
   python3 scripts/add_artifact_provenance.py \\
-    --artifact-dir /work/u4063895/datasets/artifacts_phase1_5b/sensor/n100000000/scale8233095970213 \\
-    --source-path  /work/u4063895/datasets/reliability_layer1_phase1_5/reliability_layer1/raw/sensor.f64le.bin \\
+    --artifact-dir ${WORK_DIR}/datasets/artifacts_phase1_5b/sensor/n100000000/scale8233095970213 \\
+    --source-path  ${WORK_DIR}/datasets/reliability_layer1_phase1_5/reliability_layer1/raw/sensor.f64le.bin \\
     --strategy-params results/phase1_5_strategy_params.json \\
     --dataset sensor
 """

@@ -7,7 +7,6 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=u4063895@gs.nchc.org.tw
 #
 # Regenerate Claim 2 results with rate-parametrized fault generation.
 # CPU-only pipeline (GPU requested only to satisfy partition MinGRES).
@@ -17,13 +16,10 @@
 #
 # Output:
 #   results/reliability_layer1/phase3/claim2_fault_rate_fix/
-
 set -euo pipefail
-
 REPO_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 HANDOFF_DIR="$REPO_DIR/handoff/job_done"
 mkdir -p "$HANDOFF_DIR"
-
 # Completion marker on exit
 cleanup() {
     local ec=$?
@@ -31,57 +27,45 @@ cleanup() {
     exit $ec
 }
 trap cleanup EXIT
-
 # Hostname & hardware check
 echo "Host: $(hostname)"
 echo "Job ID: ${SLURM_JOB_ID:-local}"
 echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)"
-
 cd "$REPO_DIR"
-
 # Python env
-PYTHON=/home/u4063895/.conda/envs/gpu-byteplane-scan/bin/python3
+PYTHON=${PROJ_DIR}/.conda/envs/gpu-byteplane-scan/bin/python3
 echo "Python: $($PYTHON --version)"
 echo "Numpy: $($PYTHON -c 'import numpy; print(numpy.__version__)')"
-
 # Output base
 OUT_BASE="results/reliability_layer1/phase3/claim2_fault_rate_fix"
 mkdir -p "$OUT_BASE"
-
 JID="${SLURM_JOB_ID:-local}"
-
 echo "=== 1. Full pilot (all suites A-D) ==="
 $PYTHON scripts/run_claim2_pilot.py \
     --datasets hurricane_u cesm_atm_cloud \
     --output-dir "$OUT_BASE/claim2_pilot" \
     --label claim2_pilot \
     --suite suite_a,suite_b,suite_c,suite_d
-
 echo "=== 2. Aggregated verdict ==="
 PILOT_CSV="$OUT_BASE/claim2_pilot/job_${JID}/claim2_pilot_matrix.csv"
 $PYTHON scripts/claim2_aggregate.py \
     --input-csv "$PILOT_CSV" \
     --output-dir "$OUT_BASE/claim2_final" \
     --label claim2_final
-
 echo "=== 3. Verdict ==="
 cat "$OUT_BASE/claim2_final/claim2_final_verdict.md"
-
 echo "=== 4. Check: Suite B/C/D rates differ ==="
 $PYTHON -c "
 import csv
 from collections import defaultdict
-
 with open('$PILOT_CSV') as f:
     rows = list(csv.DictReader(f))
-
 # Group by (suite, family, rate) and check unique fault signatures
 # We compare by the number of entries generated (approximated by escape_rate)
 groups = defaultdict(set)
 for r in rows:
     key = (r['suite'], r['fault_family'], r['rate'])
     groups[key].add(r['escape_rate'])
-
 print('=== Rate differentiation check ===')
 all_ok = True
 for (suite, family, rate), escapes in sorted(groups):
@@ -104,7 +88,6 @@ if all_ok:
 else:
     print('❌ Some rates still not differentiated')
 "
-
 echo "=== Done ==="
 echo "Output: $OUT_BASE"
 echo "Job: ${SLURM_JOB_ID:-local}"

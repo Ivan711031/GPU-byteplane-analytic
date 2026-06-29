@@ -9,17 +9,13 @@
 #SBATCH --job-name=cudf_fa
 #SBATCH --output=results/exp4_filter_aggregate/cudf_baseline_%j.out
 #SBATCH --error=results/exp4_filter_aggregate/cudf_baseline_%j.err
-
 # cuDF filter+aggregate baseline (raw FP64) for Exp4 representative points.
 # Pass the project allocation with sbatch command-line options when submitting.
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # Query GPU name (stored; validated after handoff trap is registered)
 # ---------------------------------------------------------------------------
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ')
-
 # ---------------------------------------------------------------------------
 # Resolve repository root (needed early for handoff marker)
 # ---------------------------------------------------------------------------
@@ -32,24 +28,20 @@ if [[ ! -f "$ROOT_DIR/scripts/cudf_filter_aggregate_baseline.py" ]]; then
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # ---------------------------------------------------------------------------
 # Result directory (must exist before trap so early failures write handoff)
 # ---------------------------------------------------------------------------
 RUN_TS=$(date +%Y%m%d_%H%M%S)
 RESULT_DIR="results/exp4_filter_aggregate/cudf_baseline_${RUN_TS}_job${SLURM_JOB_ID:-local}_${GPU_NAME// /}"
 mkdir -p "$RESULT_DIR"
-
 OUTPUT_CSV="$RESULT_DIR/cudf_filter_aggregate_representative.csv"
 STDOUT_PATH="results/exp4_filter_aggregate/cudf_baseline_${SLURM_JOB_ID:-local}.out"
 STDERR_PATH="results/exp4_filter_aggregate/cudf_baseline_${SLURM_JOB_ID:-local}.err"
-
 # GPU utilisation log (nvidia-smi loop in background)
 GPU_UTIL_LOG="$RESULT_DIR/gpu_util.log"
 nvidia-smi --query-gpu=timestamp,utilization.gpu,memory.used,memory.total,temperature.gpu \
   --format=csv -l 2 > "$GPU_UTIL_LOG" 2>&1 &
 GPU_UTIL_PID=$!
-
 # ---------------------------------------------------------------------------
 # Trap: write handoff marker on exit (registered early for fail-fast coverage)
 # ---------------------------------------------------------------------------
@@ -77,7 +69,6 @@ HERE
   echo "Handoff marker: handoff/job_done/job_${SLURM_JOB_ID:-local}.json"
 }
 trap _handoff EXIT
-
 # ---------------------------------------------------------------------------
 # H200 fail-fast (after trap so handoff marker is always written)
 # ---------------------------------------------------------------------------
@@ -86,7 +77,6 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   exit 2
 fi
 echo "GPU: $GPU_NAME"
-
 # ---------------------------------------------------------------------------
 # Environment setup — prefer RAPIDS env, fall back to project env as last resort
 # ---------------------------------------------------------------------------
@@ -94,14 +84,12 @@ module purge
 module load miniconda3/26.1.1 2>/dev/null || module load miniconda3
 module load cuda/12.6 2>/dev/null || module load cuda
 eval "$(conda shell.bash hook)"
-
 # Prefer the RAPIDS env; only fall back to gpu-byteplane-scan if it is absent.
 RAPIDS_ENV="${RAPIDS_CONDA_ENV:-gpu-byteplane-rapids}"
 if ! conda activate "$RAPIDS_ENV" 2>/dev/null; then
   echo "Cannot activate $RAPIDS_ENV; falling back to gpu-byteplane-scan"
   conda activate gpu-byteplane-scan 2>/dev/null || true
 fi
-
 # Probe for cudf/cupy; retry with gpu-byteplane-rapids once if needed.
 _rapids_probe() {
   python3 -c "import cudf, cupy; print('cuDF', cudf.__version__, 'CuPy', cupy.__version__)" 2>/dev/null
@@ -120,7 +108,6 @@ if ! _rapids_probe; then
     exit 3
   fi
 fi
-
 # ---------------------------------------------------------------------------
 # Resolve the formal sweep CSV
 # ---------------------------------------------------------------------------
@@ -130,12 +117,10 @@ if [[ ! -f "$FORMAL_CSV" ]]; then
   echo "ERROR: Formal sweep CSV not found at $FORMAL_CSV" >&2
   exit 2
 fi
-
 # ---------------------------------------------------------------------------
 # Raw file root
 # ---------------------------------------------------------------------------
 RAW_ROOT="${RAW_ROOT:-/work/$USER/datasets/synthetic/dev}"
-
 # ---------------------------------------------------------------------------
 # Run cuDF baseline
 # ---------------------------------------------------------------------------
@@ -149,7 +134,6 @@ echo "  Result dir : $RESULT_DIR"
 echo "  GPU        : $GPU_NAME"
 echo "================================================================"
 echo ""
-
 python3 scripts/cudf_filter_aggregate_baseline.py \
   --sweep-csv "$FORMAL_CSV" \
   --output "$OUTPUT_CSV" \
@@ -158,7 +142,6 @@ python3 scripts/cudf_filter_aggregate_baseline.py \
   --warmup 10 \
   --strategy all \
   --timing-policy all
-
 echo ""
 echo "================================================================"
 echo "cuDF baseline complete"

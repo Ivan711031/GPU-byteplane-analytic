@@ -13,9 +13,7 @@
 # Sweeps all refinement depths (k=0..6) for the encoded UCI dataset.
 # Do NOT submit directly. Provide --account on sbatch command line.
 #   sbatch --account=<PROJECT> scripts/run_exp3_uci_h200_smoke.sbatch
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
@@ -25,21 +23,18 @@ else
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RESULTS_BASE_REL="results/exp3_uci_h200_smoke"
 RUN_DIR="${ROOT_DIR}/${RESULTS_BASE_REL}/run_${TIMESTAMP}_job${JOB_ID}_H200"
 LOG_DIR="${ROOT_DIR}/logs"
 MARKER_DIR="${ROOT_DIR}/handoff/job_done"
-
-ENCODED_ROOT="/work/u4063895/datasets/uci_household_global_active_power/bfp-dec12"
+ENCODED_ROOT="${WORK_DIR}/datasets/uci_household_global_active_power/bfp-dec12"
 REFINE_MIN=0
 REFINE_MAX=6
 BUILD_DIR="${ROOT_DIR}/build/exp3"
 BIN="${BUILD_DIR}/bench_progressive_aggregation"
 CSV_PATH="${RUN_DIR}/exp3_uci_smoke.csv"
-
 # ---------------------------------------------------------------------------
 # Completion marker via trap (exit status captured at script end)
 # Installed early so marker is written even if mkdir or early command fails.
@@ -64,11 +59,8 @@ write_marker() {
 EOF
 }
 trap 'write_marker $?' EXIT
-
 echo "[$(date)] [exp3-uci-smoke] job ${JOB_ID} started"
-
 mkdir -p "$LOG_DIR" "$MARKER_DIR" "$RUN_DIR"
-
 # ---------------------------------------------------------------------------
 # Hardware gate: abort immediately if not H200
 # ---------------------------------------------------------------------------
@@ -80,7 +72,6 @@ case "$GPU_NAME" in
     exit 2
     ;;
 esac
-
 # ---------------------------------------------------------------------------
 # Environment: modules & conda
 # ---------------------------------------------------------------------------
@@ -89,17 +80,14 @@ if command -v module >/dev/null 2>&1; then
   module load miniconda3/26.1.1 || true
   module load cuda/12.6 || true
 fi
-
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook)"
   conda activate gpu-byteplane-scan
 fi
-
 # ---------------------------------------------------------------------------
 # Toolchain verification
 # ---------------------------------------------------------------------------
 echo "[$(date)] toolchain: nvcc=$(which nvcc) cmake=$(cmake --version | head -n1) gcc=$(gcc --version | head -n1)"
-
 # ---------------------------------------------------------------------------
 # Build benchmark binary
 # ---------------------------------------------------------------------------
@@ -107,12 +95,10 @@ echo "[$(date)] building Exp3 benchmark"
 cmake -S "${ROOT_DIR}/benchmarks/experiment3" -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
 cmake --build "$BUILD_DIR" -j
-
 if [[ ! -x "$BIN" ]]; then
   echo "ERROR: binary not found: $BIN" >&2
   exit 1
 fi
-
 # ---------------------------------------------------------------------------
 # Run meta
 # ---------------------------------------------------------------------------
@@ -136,12 +122,10 @@ fi
   gcc --version 2>/dev/null | head -n 1 || true
   echo "cuda_end"
 } > "${RUN_DIR}/run_meta.txt"
-
 # ---------------------------------------------------------------------------
 # Run Exp3 progressive SUM sweep across all refinement depths (k=0..6)
 # ---------------------------------------------------------------------------
 echo "[$(date)] launching Exp3 encoded_dev_subcolumns refine=${REFINE_MIN}..${REFINE_MAX}"
-
 "$BIN" \
   --device 0 \
   --mode encoded_dev_subcolumns \
@@ -156,6 +140,5 @@ echo "[$(date)] launching Exp3 encoded_dev_subcolumns refine=${REFINE_MIN}..${RE
   --iters 100 \
   --validate \
   --csv "$CSV_PATH"
-
 echo "[$(date)] smoke complete. Results: ${CSV_PATH}"
 ls -lh "$CSV_PATH"

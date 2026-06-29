@@ -12,8 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
-ARTIFACT_DIR = Path("/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p/sensor_p10")
-RAW_PATH = Path("/work/u4063895/datasets/synthetic/dev/sensor.f64le.bin")
+ARTIFACT_DIR = Path("${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p/sensor_p10")
+RAW_PATH = Path("${WORK_DIR}/datasets/synthetic/dev/sensor.f64le.bin")
 
 
 def le_hex_to_u64(text: str) -> int:

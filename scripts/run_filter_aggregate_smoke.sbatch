@@ -9,9 +9,7 @@
 #SBATCH --job-name=fa_smoke
 #SBATCH --output=results/exp4_filter_aggregate/smoke_%j.out
 #SBATCH --error=results/exp4_filter_aggregate/smoke_%j.err
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # H200 fail-fast
 # ---------------------------------------------------------------------------
@@ -21,7 +19,6 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   exit 2
 fi
 echo "GPU: $GPU_NAME"
-
 # ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
@@ -30,14 +27,12 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 ROOT_DIR="/home/$USER/workspace/gpu-byteplane-scan-experiments"
 if [[ ! -d "$ROOT_DIR" ]]; then
   echo "ERROR: ROOT_DIR not found: $ROOT_DIR" >&2
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
@@ -47,25 +42,20 @@ cmake -S benchmarks/experiment4_filter_aggregate -B "$BUILD_DIR" \
   -DCMAKE_CUDA_COMPILER=$(which nvcc) \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD_DIR" -j$(nproc)
-
 # ---------------------------------------------------------------------------
 # Result directory
 # ---------------------------------------------------------------------------
 RESULT_DIR="results/exp4_filter_aggregate/smoke_$(date +%Y%m%d_%H%M%S)_job${SLURM_JOB_ID:-local}_${GPU_NAME// /}"
 mkdir -p "$RESULT_DIR"
-
 # ---------------------------------------------------------------------------
 # Dataset paths
 # ---------------------------------------------------------------------------
 DATASET_ROOT="/work/$USER/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
 RAW_ROOT="/work/$USER/datasets/synthetic/dev"
-
 DATASETS=("uniform" "heavy_tailed" "sensor" "zipfian")
 ARTIFACTS=("p6")
 SELECTIVITIES=(50)
-
 BENCH="$BUILD_DIR/bench_filter_aggregate"
-
 # ---------------------------------------------------------------------------
 # Smoke test: one dataset, one artifact, one selectivity, k=1..max
 # ---------------------------------------------------------------------------
@@ -73,12 +63,10 @@ for DATASET in "${DATASETS[@]}"; do
   for ART in "${ARTIFACTS[@]}"; do
     ARTIFACT_ROOT="${DATASET_ROOT}/${DATASET}_${ART}"
     RAW_FILE="${RAW_ROOT}/${DATASET}.f64le.bin"
-
     if [[ ! -d "$ARTIFACT_ROOT" ]]; then
       echo "SKIP: artifact not found: $ARTIFACT_ROOT"
       continue
     fi
-
     # Get max plane count from manifest
     MAX_PLANES=$(python3 -c "
 import json
@@ -86,7 +74,6 @@ with open('${ARTIFACT_ROOT}/manifest.json') as f:
     m = json.load(f)
 print(m['max_plane_count'])
 ")
-
     for SEL in "${SELECTIVITIES[@]}"; do
       QUANTILE=$(python3 -c "print(1 - ${SEL}/100)")
       THRESHOLD=$(python3 -c "
@@ -94,9 +81,7 @@ import numpy as np
 data = np.fromfile('${RAW_FILE}', dtype=np.float64)
 print(np.quantile(data, ${QUANTILE}))
 ")
-
       echo "=== ${DATASET}_${ART} s${SEL} threshold=${THRESHOLD} max_planes=${MAX_PLANES} ==="
-
       for K in $(seq 1 $MAX_PLANES); do
         CSV="${RESULT_DIR}/run_${DATASET}_${ART}_s${SEL}_k${K}.csv"
         echo "  k=$K ..."
@@ -114,11 +99,9 @@ print(np.quantile(data, ${QUANTILE}))
     done
   done
 done
-
 echo ""
 echo "=== Smoke test complete ==="
 echo "Results in: $RESULT_DIR"
-
 # ---------------------------------------------------------------------------
 # Handoff marker
 # ---------------------------------------------------------------------------

@@ -4,15 +4,11 @@
 #SBATCH --gres=gpu:1
 #SBATCH -t 0-02:00:00
 #SBATCH --mail-type=END,FAIL
-
 # NMR-R11: Single-Replica Detect-and-Bound Contract Freeze for v1.3
 # Usage: DATASET=hurricane_u sbatch scripts/run_nmr_r11_single_replica.sbatch
 #        DATASET=cesm_atm_cloud sbatch scripts/run_nmr_r11_single_replica.sbatch
-
 set -euo pipefail
-
 DATASET="${DATASET:?must be set to hurricane_u or cesm_atm_cloud}"
-
 # Write handoff marker on exit
 PROJ_ROOT="${PROJ_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cleanup() {
@@ -36,7 +32,6 @@ EOF
     exit $rc
 }
 trap cleanup EXIT
-
 echo "=== NMR-R11 Single-Replica Detect-and-Bound Freeze ==="
 echo "Job: $SLURM_JOB_ID  Node: $(hostname)  Dataset: $DATASET"
 GPU_NAME="unknown"
@@ -49,7 +44,6 @@ if ! echo "$GPU_NAME" | grep -qi "H200"; then
     exit 2
 fi
 date
-
 case "$DATASET" in
 cesm_atm_cloud)
     N_ROWS=168480000
@@ -62,23 +56,18 @@ hurricane_u)
     exit 1
     ;;
 esac
-
-ARTIFACT_DIR="/work/u4063895/datasets/locality_sensitivity/${DATASET}/seg4096"
-
+ARTIFACT_DIR="${WORK_DIR}/datasets/locality_sensitivity/${DATASET}/seg4096"
 ml purge 2>/dev/null || true
 ml load miniconda3/26.1.1 cuda/12.6
-source /work/envstack/apps/miniconda3/26.1.1/etc/profile.d/conda.sh
+source ${ENVSTACK_ROOT}/miniconda3/26.1.1/etc/profile.d/conda.sh
 conda activate gpu-byteplane-scan
-
 SCRIPT_DIR="$PROJ_ROOT/scripts"
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 OUTDIR="$PROJ_ROOT/results/v1_3_freeze/reliability_single/job_${SLURM_JOB_ID}"
 mkdir -p "$OUTDIR"
-
 echo "N_ROWS=$N_ROWS"
 echo "ARTIFACT_DIR=$ARTIFACT_DIR"
 echo "OUTDIR=$OUTDIR"
-
 # Step 1: Plane-uniform mode (3 rates × 3 seeds)
 echo ""
 echo "=== Step 1: Plane-uniform fault injection ==="
@@ -90,7 +79,6 @@ python3 "$SCRIPT_DIR/nmr_r11_single_replica.py" \
     --seeds 0 1 2 \
     --mode plane_uniform \
     --output "$OUTDIR/nmr_r11_plane_uniform.csv"
-
 # Step 2: Same-fault-all negative control (3 seeds)
 echo ""
 echo "=== Step 2: Same-fault-all negative control ==="
@@ -102,10 +90,7 @@ python3 "$SCRIPT_DIR/nmr_r11_single_replica.py" \
     --seeds 0 1 2 \
     --mode same_fault_all \
     --output "$OUTDIR/nmr_r11_same_fault_all.csv"
-
 echo ""
 echo "=== Complete: $DATASET ==="
 find "$OUTDIR" -name '*.csv' -exec ls -lh {} \;
 date
-
-

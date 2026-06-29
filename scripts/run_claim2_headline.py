@@ -37,8 +37,8 @@ from claim2_aggregate import (
 )
 
 DATASET_PATHS: dict[str, str] = {
-    "hurricane_u": "/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096",
-    "cesm_atm_cloud": "/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
+    "hurricane_u": "${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096",
+    "cesm_atm_cloud": "${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
 }
 N_ROWS = 500_000
 HEADLINE_RATES = ["1e-06", "1e-05", "3e-05"]

@@ -5,31 +5,26 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=01:00:00
-#SBATCH --output=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_canonical_h100_%j.log
-#SBATCH --error=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_canonical_h100_%j.err
+#SBATCH --output=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_canonical_h100_%j.log
+#SBATCH --error=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_canonical_h100_%j.err
 set -euo pipefail
-
 ROOT_DIR="${ROOT_DIR:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
 cd "$ROOT_DIR"
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ')
 [[ "$GPU_NAME" == *"H100"* ]] || { echo "Not H100: $GPU_NAME"; exit 2; }
 echo "[$TIMESTAMP] H100 OK: $GPU_NAME"
-
 module load miniconda3/24.11.1 cmake/3.24.2 cuda/12.6
 echo "nvcc: $(which nvcc)"
 cmake --version | head -1
 gcc --version | head -1
-
 N=100000000
 SCALE=100
-ART_ROOT="/work/u4063895/datasets/reliability_layer1"
-RESULTS_BASE="/work/u4063895/results/reliability_layer1"
+ART_ROOT="${WORK_DIR}/datasets/reliability_layer1"
+RESULTS_BASE="${WORK_DIR}/results/reliability_layer1"
 RESULTS_DIR="$RESULTS_BASE/canonical_h100_${TIMESTAMP}_job${JOB_ID}_H100"
 TMPDIR="/tmp/rl_canon_h100_${JOB_ID}"
-
 DATASETS="${DATASETS:-sensor uniform heavy_tailed zipfian}"
 FAULT_RATES="1e-08 1e-07 1e-06 1e-05 1e-04"
 PLANES="0 1 2 3 4 5 6 7"
@@ -41,9 +36,7 @@ RATE_COUNT=$(printf "%s\n" $FAULT_RATES | wc -l)
 PLANE_COUNT=$(printf "%s\n" $PLANES | wc -l)
 SEED_COUNT=$(printf "%s\n" $SEEDS | wc -l)
 EXPECTED_CONFIGS=$((DATASET_COUNT * RATE_COUNT * PLANE_COUNT * SEED_COUNT))
-
 mkdir -p "$TMPDIR" "$RESULTS_DIR"
-
 echo "Checking canonical artifacts..."
 for DS in $DATASETS; do
   ART_DIR="$ART_ROOT/artifacts/$DS/n${N}/scale${SCALE}"
@@ -54,14 +47,12 @@ for DS in $DATASETS; do
   fi
   echo "Artifact: $DS ($(du -sh "$ART_DIR" | cut -f1))"
 done
-
 BUILD_DIR="$ROOT_DIR/build/reliability_layer1_job${JOB_ID}"
 cmake -S "$ROOT_DIR/benchmarks/reliability_layer1" -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
 cmake --build "$BUILD_DIR" -j --clean-first
 BIN="$BUILD_DIR/bench_reliability_fixture"
 test -x "$BIN" || { echo "Build failed"; exit 2; }
-
 echo "[$(date)] Clean gates..."
 for DS in $DATASETS; do
   ART_DIR="$ART_ROOT/artifacts/$DS/n${N}/scale${SCALE}"
@@ -70,7 +61,6 @@ for DS in $DATASETS; do
     echo "CLEAN GATE FAILED: $DS"; exit 2; }
   echo "OK: $DS"
 done
-
 echo "[$(date)] Full matrix..."
 ALL_CSV="$TMPDIR/canonical_matrix.csv"
 FAIL_CSV="$TMPDIR/case_failures.csv"
@@ -82,7 +72,6 @@ TOTAL_CONFIGS=0
 ATTEMPTED_CONFIGS=0
 MISSING_CONFIGS=0
 BINARY_FAILURES=0
-
 for DS in $DATASETS; do
   ART_DIR="$ART_ROOT/artifacts/$DS/n${N}/scale${SCALE}"
   for PLANE in $PLANES; do
@@ -130,9 +119,7 @@ for DS in $DATASETS; do
   done
   echo "$DS done"
 done
-
 echo "[$(date)] Matrix complete: $TOTAL_CONFIGS configs"
-
 if [[ -f "$ALL_CSV" ]]; then
   MATCH=$(awk -F',' '{gsub(/^[ \t]+|[ \t]+$/, "", $20); if($20 == "true") c++} END{print c+0}' "$ALL_CSV")
   ROWS=$(tail -n+2 "$ALL_CSV" | wc -l)
@@ -146,14 +133,12 @@ echo "Attempted configs: $ATTEMPTED_CONFIGS"
 echo "Missing configs: $MISSING_CONFIGS"
 echo "Binary failures: $BINARY_FAILURES"
 echo "Failure rows: $FAIL_ROWS"
-
 if [[ -f "$ALL_CSV" && "$ROWS" -gt 0 ]]; then
   python3 "$ROOT_DIR/scripts/aggregate_reliability.py" \
     --csv "$ALL_CSV" --output-dir "$TMPDIR/report" --plot
 else
   echo "WARN: no canonical matrix rows available for aggregation"
 fi
-
 [[ -f "$ALL_CSV" ]] && cp "$ALL_CSV" "$RESULTS_DIR/canonical_matrix.csv"
 cp "$FAIL_CSV" "$RESULTS_DIR/case_failures.csv"
 if [[ -d "$TMPDIR/report" ]]; then
@@ -169,10 +154,8 @@ echo "binary_failures=$BINARY_FAILURES" >> "$RESULTS_DIR/run_meta.txt"
 echo "failure_rows=$FAIL_ROWS" >> "$RESULTS_DIR/run_meta.txt"
 echo "gpu=$GPU_NAME job=$JOB_ID" >> "$RESULTS_DIR/run_meta.txt"
 echo "platform=Nano5 H100" >> "$RESULTS_DIR/run_meta.txt"
-
 cat "$RESULTS_DIR/phase1_review_report.txt" 2>/dev/null || true
 echo "Results: $RESULTS_DIR"
-
 if [[ "$ROWS" -ne "$EXPECTED_CONFIGS" ]]; then
   echo "MATRIX INCOMPLETE: expected $EXPECTED_CONFIGS rows, got $ROWS"
   exit 2

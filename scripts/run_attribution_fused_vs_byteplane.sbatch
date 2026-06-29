@@ -9,7 +9,6 @@
 #SBATCH --job-name=fa_attr
 #SBATCH --output=results/exp4_filter_aggregate/attribution_%j.out
 #SBATCH --error=results/exp4_filter_aggregate/attribution_%j.err
-
 # ============================================================================
 # Exp4 Filter+Aggregate: Raw-Fused vs Byteplane-Fused Attribution Test
 # ============================================================================
@@ -23,9 +22,7 @@
 # which produces BOTH the raw-fused baseline timing AND the byteplane-fused
 # timing in a single invocation.
 # ============================================================================
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # H200 fail-fast gate
 # ---------------------------------------------------------------------------
@@ -35,7 +32,6 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   exit 2
 fi
 echo "GPU: $GPU_NAME"
-
 # ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
@@ -44,14 +40,12 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 ROOT_DIR="/home/$USER/workspace/gpu-byteplane-scan-experiments"
 if [[ ! -d "$ROOT_DIR" ]]; then
   echo "ERROR: ROOT_DIR not found: $ROOT_DIR" >&2
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # ---------------------------------------------------------------------------
 # Build (if needed)
 # ---------------------------------------------------------------------------
@@ -64,42 +58,35 @@ if [[ ! -f "$BENCH" ]]; then
     -DCMAKE_BUILD_TYPE=Release
   cmake --build "$BUILD_DIR" -j$(nproc)
 fi
-
 # Verify toolchain
 which nvcc
 cmake --version | head -1
 gcc --version | head -1
-
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 DATASET_ROOT="/work/$USER/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
 RAW_ROOT="/work/$USER/datasets/synthetic/dev"
-
 declare -A DATASET_ARTIFACTS
 DATASET_ARTIFACTS[uniform]=uniform_p10
 DATASET_ARTIFACTS[heavy_tailed]=heavy_tailed_p6
 DATASET_ARTIFACTS[sensor]=sensor_p10
 DATASET_ARTIFACTS[zipfian]=zipfian_p8
-
 # k* (minimum k that reaches s≈50%) for each dataset, from formal sweep + cuDF baseline
 declare -A K_STAR
 K_STAR[sensor]=1
 K_STAR[uniform]=1
 K_STAR[heavy_tailed]=4
 K_STAR[zipfian]=3
-
 # max_planes for each dataset
 declare -A MAX_PLANES
 MAX_PLANES[sensor]=5
 MAX_PLANES[uniform]=6
 MAX_PLANES[heavy_tailed]=8
 MAX_PLANES[zipfian]=8
-
 SELECTIVITIES=(10 50 90)
 WARMUP=20
 ITERS=200
-
 # ---------------------------------------------------------------------------
 # Result directory
 # ---------------------------------------------------------------------------
@@ -107,22 +94,18 @@ RESULT_DIR="results/exp4_filter_aggregate/attribution_$(date +%Y%m%d_%H%M%S)_job
 mkdir -p "$RESULT_DIR"
 ALL_CSV="$RESULT_DIR/all_runs.csv"
 echo "Result dir: $RESULT_DIR"
-
 # CSV header
 echo "dataset,selectivity_pct,threshold,k,k_star_k,max_planes,ms_per_iter_fused,raw_baseline_ms_per_iter,gpu_count,enc_count,count_ok,iters,warmup" > "$ALL_CSV"
-
 # ---------------------------------------------------------------------------
 # Run attribution matrix
 # ---------------------------------------------------------------------------
 TOTAL=0
 PASS=0
 FAIL=0
-
 for DATASET in sensor uniform heavy_tailed zipfian; do
   ARTIFACT="${DATASET_ARTIFACTS[$DATASET]}"
   ARTIFACT_ROOT="${DATASET_ROOT}/${ARTIFACT}"
   RAW_FILE="${RAW_ROOT}/${DATASET}.f64le.bin"
-
   if [[ ! -d "$ARTIFACT_ROOT" ]]; then
     echo "SKIP: artifact not found: $ARTIFACT_ROOT"
     continue
@@ -131,15 +114,12 @@ for DATASET in sensor uniform heavy_tailed zipfian; do
     echo "SKIP: raw file not found: $RAW_FILE"
     continue
   fi
-
   K_STAR_VAL="${K_STAR[$DATASET]}"
   MAX_P_VAL="${MAX_PLANES[$DATASET]}"
-
   echo ""
   echo "================================================================"
   echo "Dataset: $DATASET  Artifact: $ARTIFACT  k*=$K_STAR_VAL  max=$MAX_P_VAL"
   echo "================================================================"
-
   for SEL in "${SELECTIVITIES[@]}"; do
     # Compute threshold as quantile(1 - sel/100) of raw data
     QUANTILE=$(python3 -c "print(1 - ${SEL}/100)")
@@ -149,7 +129,6 @@ data = np.fromfile('${RAW_FILE}', dtype=np.float64)
 q = np.quantile(data, ${QUANTILE})
 print(q)
 ")
-
     # For each dataset & selectivity, determine k values to test:
     # - k=1 always
     # - k=k* (representative at s≈50%) 
@@ -163,7 +142,6 @@ print(q)
     if [[ "$MAX_P_VAL" != "1" ]]; then
       KS+=("$MAX_P_VAL")
     fi
-
     for K in "${KS[@]}"; do
       TOTAL=$((TOTAL + 1))
       CSV_OUT="$RESULT_DIR/run_${DATASET}_s${SEL}_k${K}.csv"
@@ -172,9 +150,7 @@ print(q)
       if [[ "$K" == "$K_STAR_VAL" ]]; then
         IS_KSTAR="true"
       fi
-
       echo "  [${DATASET} s=${SEL}% k=${K}] threshold=${THRESHOLD} k*=${IS_KSTAR}"
-
       if $BENCH \
           --dataset "$ARTIFACT_ROOT" \
           --raw "$RAW_FILE" \
@@ -187,7 +163,6 @@ print(q)
           --csv "$CSV_OUT" \
           > "$LOG_OUT" 2>&1; then
         PASS=$((PASS + 1))
-
         # Extract key fields from CSV and append to summary
         # CSV columns: ms_per_iter, gpu_count, cpu_enc_count, raw_baseline_ms_per_iter, validated
         # Use tail -1 to skip header
@@ -201,9 +176,7 @@ print(q)
         if [[ "$GPU_COUNT" == "$ENC_COUNT" ]]; then
           COUNT_OK="true"
         fi
-
         echo "${DATASET},${SEL},${THRESHOLD},${K},${IS_KSTAR},${MAX_P_VAL},${FUSED_MS},${RAW_MS},${GPU_COUNT},${ENC_COUNT},${COUNT_OK},${ITERS},${WARMUP}" >> "$ALL_CSV"
-
         echo "    OK fused_ms=${FUSED_MS} raw_ms=${RAW_MS} validated=${VALIDATED} count_ok=${COUNT_OK}"
       else
         FAIL=$((FAIL + 1))
@@ -213,7 +186,6 @@ print(q)
     done
   done
 done
-
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
@@ -224,7 +196,6 @@ echo "  Total: $TOTAL  PASS: $PASS  FAIL: $FAIL"
 echo "  Results: $RESULT_DIR"
 echo "  All runs CSV: $ALL_CSV"
 echo "================================================================"
-
 # ---------------------------------------------------------------------------
 # Post-process: build attribution CSV + analysis
 # ---------------------------------------------------------------------------
@@ -234,10 +205,8 @@ python3 - "$ALL_CSV" "$RESULT_DIR" <<'PYEOF'
 import csv
 import os
 import sys
-
 all_csv = sys.argv[1]
 result_dir = sys.argv[2]
-
 # Read all runs
 rows = []
 with open(all_csv) as f:
@@ -247,7 +216,6 @@ with open(all_csv) as f:
         r['raw_baseline_ms_per_iter'] = float(r['raw_baseline_ms_per_iter'])
         r['selectivity_pct'] = int(r['selectivity_pct'])
         rows.append(r)
-
 # Build attribution CSV (one row per (dataset, selectivity, k) group)
 # Fields:
 #   dataset, selectivity_pct, threshold, k, is_k_star, max_planes,
@@ -255,7 +223,6 @@ with open(all_csv) as f:
 #   speedup_fused_vs_cudf, speedup_raw_vs_cudf,
 #   speedup_bp_full_vs_raw, speedup_bp_kstar_vs_raw,
 #   count_ok
-
 # cuDF baseline: reuse representative values from existing results
 # From cudf_baseline_20260517_183723_job53522_NVIDIAH200 report and the newer cudf_baseline_20260518_212620_job55516
 # Using compact_then_reduce, gpu_hot_path numbers (minimal overhead)
@@ -268,7 +235,6 @@ CUDF_BASELINE = {
     ('zipfian', 50): 4.764,  # masked_reduce gpu_hot_path: 4.768064
     # At s≈10% and s≈90%, we don't have cuDF measurements; note as N/A
 }
-
 # Build attribution table
 attr_rows = []
 for r in rows:
@@ -279,7 +245,6 @@ for r in rows:
     max_p = int(r['max_planes'])
     fused_ms = r['ms_per_iter_fused']
     raw_ms = r['raw_baseline_ms_per_iter']
-
     # cuDF speedup
     cudf_key = (ds, sel)
     if cudf_key in CUDF_BASELINE:
@@ -290,18 +255,15 @@ for r in rows:
         cudf_ms = float('nan')
         speedup_fused_vs_cudf = float('nan')
         speedup_raw_vs_cudf = float('nan')
-
     # Byteplane vs raw
     if k == max_p:
         speedup_bp_full_vs_raw = raw_ms / fused_ms if fused_ms > 0 else 0
     else:
         speedup_bp_full_vs_raw = float('nan')
-
     if is_kstar == 'true':
         speedup_bp_kstar_vs_raw = raw_ms / fused_ms if fused_ms > 0 else 0
     else:
         speedup_bp_kstar_vs_raw = float('nan')
-
     attr_rows.append({
         'dataset': ds,
         'selectivity_pct': sel,
@@ -318,7 +280,6 @@ for r in rows:
         'speedup_bp_kstar_vs_raw': speedup_bp_kstar_vs_raw,
         'count_ok': r['count_ok']
     })
-
 # Write attribution CSV
 attr_csv = os.path.join(result_dir, 'attribution_raw_fused_vs_byteplane_fused.csv')
 fieldnames = [
@@ -332,9 +293,7 @@ with open(attr_csv, 'w') as f:
     w = csv.DictWriter(f, fieldnames=fieldnames)
     w.writeheader()
     w.writerows(attr_rows)
-
 print(f"Attribution CSV: {attr_csv}")
-
 # Print summary table
 print()
 print("=" * 120)
@@ -350,12 +309,10 @@ for a in sorted(attr_rows, key=lambda x: (x['dataset'], x['selectivity_pct'], x[
     bp_kstar_str = f"{a['speedup_bp_kstar_vs_raw']:.3f}x" if not (isinstance(a['speedup_bp_kstar_vs_raw'], float) and (a['speedup_bp_kstar_vs_raw'] != a['speedup_bp_kstar_vs_raw'])) else "N/A"
     print(f"{a['dataset']:<14} {a['selectivity_pct']:>3} {a['k']:>2} {a['is_k_star']:>4} {a['max_planes']:>5} {a['fused_ms']:>10.6f} {a['raw_fused_ms']:>10.6f} {cudf_str:>10} {fused_cudf_str:>10} {raw_cudf_str:>10} {bp_full_str:>8} {bp_kstar_str:>8} {a['count_ok']:>8}")
 print("=" * 120)
-
 # Build key conclusions
 print()
 print("KEY FINDINGS")
 print("-" * 80)
-
 # Group by dataset and find rows at s≈50% for conclusions
 s50_rows = [a for a in attr_rows if a['selectivity_pct'] == 50]
 for a in s50_rows:
@@ -364,7 +321,6 @@ for a in s50_rows:
     cudf = a['cudf_ms']
     is_kstar = a['is_k_star'] == 'true'
     is_full = a['k'] == a['max_planes']
-
     if is_full:
         fusion_gain = cudf / raw_fused if cudf == cudf else float('nan')
         bp_full_gain = raw_fused / bp_fused
@@ -380,9 +336,7 @@ for a in s50_rows:
         print(f"  {a['dataset']} (s=50%, k=1):")
         print(f"    BP k=1 vs raw-fused: {bp_k1_gain:.3f}x")
     print()
-
 PYEOF
-
 # ---------------------------------------------------------------------------
 # Handoff marker
 # ---------------------------------------------------------------------------

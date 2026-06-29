@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-BASE = Path("/home/u4063895/workspace/gpu-byteplane-scan-experiments")
+BASE = Path("${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments")
 
 # ── 1. Read inputs ──────────────────────────────────────────────
 sweep_path = BASE / "results/exp4/b1_20260510_174435_job44743_NVIDIAH200/sweep_summary.csv"

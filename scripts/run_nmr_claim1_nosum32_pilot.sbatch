@@ -7,29 +7,23 @@
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=u4063895@gs.ncku.edu.tw
 #SBATCH -o slurm-%j.out
 #SBATCH -e slurm-%j.err
-
 set -euo pipefail
-
-WORKTREE_ROOT="/home/u4063895/workspace/gpu-byteplane-scan-experiments/.worktrees/issue-285-nmr-claim1-no-sum32"
+WORKTREE_ROOT="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments/.worktrees/WORKTREE"
 RESULTS_DIR="$WORKTREE_ROOT/results/reliability_layer1/claim1_nosum32_pilot/job_${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
-
 echo "=== Job $SLURM_JOB_ID: Claim1 No-SUM32 Full Matrix ==="
 echo "Worktree: $WORKTREE_ROOT"
 echo "Results:  $RESULTS_DIR"
 echo "Start:    $(date -Iseconds)"
 echo "Host:     $(hostname)"
 echo
-
 RUNNER="$WORKTREE_ROOT/scripts/nmr_claim1_realistic_campaign.py"
 FAMILIES="${FAMILIES:-F1 F2 F3 F4 F5 F6 F7 F8}"
 RATES="${RATES:-1e-9 1e-7 1e-5 1e-3}"
 if [ -z "${SEEDS:-}" ]; then SEEDS=$(seq 0 29 | tr '\n' ' '); fi
 N_ROWS=5000000
-
 run_dataset() {
     local dataset="$1"
     local artifact_dir="$2"
@@ -50,21 +44,18 @@ run_dataset() {
     echo "<<< Done: $dataset ($(date -Iseconds))"
     echo
 }
-
 if [ -n "${DATASET:-}" ]; then
     case "$DATASET" in
-        hurricane_u)   run_dataset hurricane_u   "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12/" ;;
-        cesm_atm_cloud) run_dataset cesm_atm_cloud "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12/" ;;
+        hurricane_u)   run_dataset hurricane_u   "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12/" ;;
+        cesm_atm_cloud) run_dataset cesm_atm_cloud "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12/" ;;
         *) echo "Unknown dataset: $DATASET"; exit 1 ;;
     esac
 else
-    run_dataset hurricane_u   "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12/"
-    run_dataset cesm_atm_cloud "/work/u4063895/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12/"
+    run_dataset hurricane_u   "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/hurricane_u/bfp-dec12/"
+    run_dataset cesm_atm_cloud "${WORK_DIR}/datasets/scientific/dev_buff_v2_scientific/cesm_atm_cloud/bfp-dec12/"
 fi
-
 echo "=== All complete ==="
 echo "End:      $(date -Iseconds)"
-
 # Handoff marker
 SEEDS_STR=$(echo $SEEDS | tr '\n' ' ' | sed 's/ *$//')
 mkdir -p "$WORKTREE_ROOT/handoff/job_done"

@@ -27,7 +27,6 @@
 #
 # NOTE: extractor is scripts/extract_exp4_ncu_deep_metrics.py (already reads
 # the strategy column from summary.csv).
-
 #SBATCH --job-name=exp4-ncu-bm-kspec-bcd
 #SBATCH --partition=dev
 #SBATCH --nodes=1
@@ -36,9 +35,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=01:00:00
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   ROOT_DIR="$SLURM_SUBMIT_DIR"
 else
@@ -49,29 +46,23 @@ if [[ ! -d "$ROOT_DIR" ]]; then
   exit 2
 fi
 cd "$ROOT_DIR"
-
-V2_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
-RAW_ROOT="/work/u4063895/datasets/synthetic/dev"
-
+V2_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
+RAW_ROOT="${WORK_DIR}/datasets/synthetic/dev"
 declare -A DATASET_P
 DATASET_P[heavy_tailed]="p6"
 DATASET_P[zipfian]="p8"
-
 timestamp=$(date +%Y%m%d_%H%M%S)
 job_id="${SLURM_JOB_ID:-local}"
 GPU_NAME="unknown"
 GPU_TAG="unknown"
-
 if command -v nvidia-smi &>/dev/null; then
   GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ' 2>/dev/null || echo "unknown")
   GPU_TAG="${GPU_NAME// /_}"
   GPU_TAG="${GPU_TAG:-unknown}"
 fi
-
 run_dir="${ROOT_DIR}/results/exp4/ncu_bm_kspecialized_bcd_${timestamp}_job${job_id}_${GPU_TAG}"
 handoff_dir="${ROOT_DIR}/handoff/job_done"
 handoff_marker="${handoff_dir}/job_${job_id}.json"
-
 write_handoff_marker() {
   local status=$?
   if [[ -n "${TRACKER_PID:-}" ]]; then
@@ -109,13 +100,11 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
 mkdir -p "$run_dir" "$handoff_dir"
-
 gpu_util_log="${run_dir}/gpu_util.csv"
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_util_log"
 (
@@ -127,30 +116,26 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_util_log"
   done
 ) &
 TRACKER_PID=$!
-
 module purge || true
 module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 echo "=== Toolchain ===" >&2
 echo "nvcc: $(which nvcc) $($(which nvcc) --version 2>&1 | grep release)" >&2
 echo "gcc: $(gcc --version 2>&1 | head -1)" >&2
 echo "cmake: $(cmake --version 2>&1 | head -1)" >&2
-
 NCU_BIN=""
 if command -v ncu &>/dev/null; then
   NCU_BIN=$(which ncu)
-elif [[ -x /work/envstack/apps/cuda/12.6/bin/ncu ]]; then
-  NCU_BIN=/work/envstack/apps/cuda/12.6/bin/ncu
+elif [[ -x ${ENVSTACK_ROOT}/cuda/12.6/bin/ncu ]]; then
+  NCU_BIN=${ENVSTACK_ROOT}/cuda/12.6/bin/ncu
 fi
 if [[ -z "$NCU_BIN" ]]; then
   echo "ERROR: ncu not found" >&2
   exit 2
 fi
 echo "ncu: $NCU_BIN $($NCU_BIN --version 2>&1 | head -1)" >&2
-
 echo "=== Job info ===" >&2
 echo "Job ID: ${job_id}  Host: $(hostname)  GPU: ${GPU_NAME}" >&2
 echo "Output: ${run_dir}" >&2
@@ -158,7 +143,6 @@ nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,nohea
 git rev-parse HEAD >&2
 git status --short >&2
 echo "" >&2
-
 cat > "${run_dir}/metric_focus.txt" <<'EOF'
 P2-2 specialized-k NCU focus:
 - Compare byte_mask (runtime-variable round count) vs byte_mask_specialized_k*
@@ -166,7 +150,6 @@ P2-2 specialized-k NCU focus:
 - Key metrics: issued/executed instructions, eligible warps, long scoreboard,
   L1/L2/DRAM traffic, instruction mix (ALU/FMA/uniform).
 - Assess whether unrolling reduces instruction count or improves ILP.
-
 NCU capture mode:
 - --set full
 - --launch-count 1
@@ -181,17 +164,14 @@ NCU capture mode:
   - PARTIAL: report only.
   - FAIL: NCU capture/report failed.
 EOF
-
 echo "=== Build ===" >&2
 cmake -S benchmarks/experiment4 -B build/exp4 \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90 2>&1
 cmake --build build/exp4 -j 2>&1
 echo "" >&2
-
 BENCH_BIN="${ROOT_DIR}/build/exp4/bench_progressive_filter"
 summary_csv="${run_dir}/summary.csv"
 echo "case_id,dataset,selectivity,k,strategy,max_filter_planes,validated,gpu_count,cpu_encoded_count,ms_per_iter,ncu_status,ncu_report,ncu_csv" > "$summary_csv"
-
 declare -A THRESHOLD_CACHE
 compute_threshold() {
   local dataset="$1" selectivity="$2"
@@ -215,7 +195,6 @@ print(np.quantile(data, ${quantile}))
   THRESHOLD_CACHE["$cache_key"]="$threshold"
   printf '%s\n' "$threshold"
 }
-
 # Each entry: case_id dataset selectivity k_label mfp strategy
 declare -a PROFILES
 PROFILES+=("Bfull heavy_tailed 99 full NA byte_mask")
@@ -228,11 +207,9 @@ PROFILES+=("Ck4 zipfian 99 k4 4 byte_mask")
 PROFILES+=("Ck4 zipfian 99 k4 4 byte_mask_specialized_k4")
 PROFILES+=("Dk1 heavy_tailed 99 k1 1 byte_mask")
 PROFILES+=("Dk1 heavy_tailed 99 k1 1 byte_mask_specialized_k1")
-
 total_ok=0
 total_fail=0
 SUBFAILURES=()
-
 for entry in "${PROFILES[@]}"; do
   read -r case_id dataset sel k_label mfp strategy <<< "$entry"
   artifact_p="${DATASET_P[$dataset]}"
@@ -240,13 +217,11 @@ for entry in "${PROFILES[@]}"; do
   threshold=$(compute_threshold "$dataset" "$sel")
   case_dir="${run_dir}/case_${case_id}_${strategy}"
   mkdir -p "$case_dir"
-
   echo "" >&2
   echo "============================================================" >&2
   echo "[${case_id}_${strategy}] dataset=${dataset} sel=${sel} k=${k_label} mfp=${mfp}" >&2
   echo "============================================================" >&2
   echo "  threshold=${threshold}" >&2
-
   # --- Baseline timing (with validation) ---
   baseline_csv="${case_dir}/baseline.csv"
   baseline_log="${case_dir}/baseline.log"
@@ -262,7 +237,6 @@ for entry in "${PROFILES[@]}"; do
   fi
   baseline_rc=$?
   set -e
-
   validated="false"
   gpu_count="NA"
   cpu_encoded="NA"
@@ -281,7 +255,6 @@ for entry in "${PROFILES[@]}"; do
   else
     echo "  ✗ Baseline CSV not found (rc=${baseline_rc})" >&2
   fi
-
   # --- NCU capture ---
   ncu_export_base="${case_dir}/ncu_profile"
   ncu_report="${ncu_export_base}.ncu-rep"
@@ -289,7 +262,6 @@ for entry in "${PROFILES[@]}"; do
   ncu_stdout="${case_dir}/ncu_stdout.txt"
   ncu_stderr="${case_dir}/ncu_stderr.txt"
   ncu_status="not_run"
-
   set +e
   if [[ "$mfp" != "NA" ]]; then
     "$NCU_BIN" --set full --target-processes all --profile-from-start yes \
@@ -308,7 +280,6 @@ for entry in "${PROFILES[@]}"; do
   fi
   ncu_rc=$?
   set -e
-
   if grep -q "No kernels were profiled" "$ncu_stdout" 2>/dev/null; then
     ncu_status="FAIL: No kernels were profiled"
   elif [[ "$ncu_rc" -eq 0 ]] && [[ -f "$ncu_report" ]] && [[ -s "$ncu_report" ]]; then
@@ -328,10 +299,8 @@ for entry in "${PROFILES[@]}"; do
   else
     ncu_status="FAIL: ncu rc=${ncu_rc} or report missing"
   fi
-
   echo "$ncu_status" > "${case_dir}/ncu_status.txt"
   echo "${case_id},${dataset},${sel},${k_label},${strategy},${mfp:-NA},${validated},${gpu_count},${cpu_encoded},${ms_per_iter},${ncu_status},${ncu_report},${ncu_csv}" >> "$summary_csv"
-
   if { [[ "$ncu_status" == "PASS" ]] || [[ "$ncu_status" == "PASS: stdout metrics" ]]; } \
     && [[ "$validated" == "true" ]]; then
     total_ok=$((total_ok + 1))
@@ -340,7 +309,6 @@ for entry in "${PROFILES[@]}"; do
     SUBFAILURES+=("${case_id}_${strategy}: validated=${validated} ncu=${ncu_status}")
   fi
 done
-
 # Run extractor
 metrics_csv="${run_dir}/p2_kspecialized_metrics.csv"
 extractor_status="not_run"
@@ -358,7 +326,6 @@ else
   total_fail=$((total_fail + 1))
   SUBFAILURES+=("extract_metrics: missing scripts/extract_exp4_ncu_deep_metrics.py")
 fi
-
 cat > "${run_dir}/run_meta.txt" <<EOF
 job_id=${job_id}
 job_name=exp4-ncu-bm-kspec-bcd
@@ -373,7 +340,6 @@ summary_csv=${summary_csv}
 metrics_csv=${metrics_csv}
 extractor_status=${extractor_status}
 EOF
-
 echo "" >&2
 echo "=== Summary ===" >&2
 echo "ok=${total_ok} fail=${total_fail}" >&2
@@ -383,5 +349,4 @@ if (( total_fail > 0 )); then
   printf '  %s\n' "${SUBFAILURES[@]}" >&2
   exit 1
 fi
-
 echo "DONE" >&2

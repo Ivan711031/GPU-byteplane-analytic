@@ -7,16 +7,12 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=8G
-
 set -euo pipefail
-
 ml purge
 ml load miniconda3
-PYTHON="/home/u4063895/.conda/envs/gpu-byteplane-scan/bin/python3"
-
-PROJ_ROOT="/home/u4063895/workspace/gpu-byteplane-claim2-diversity"
+PYTHON="${PROJ_DIR}/.conda/envs/gpu-byteplane-scan/bin/python3"
+PROJ_ROOT="${PROJ_DIR}/workspace/gpu-byteplane-claim2-diversity"
 cd "$PROJ_ROOT"
-
 # Smoke: 1 dataset, 2 seeds, 1 rate, all suites
 $PYTHON scripts/run_claim2_pilot.py \
     --datasets hurricane_u \
@@ -24,5 +20,4 @@ $PYTHON scripts/run_claim2_pilot.py \
     --seeds 0 1 \
     --rates 1e-06 \
     --output-dir results/reliability_layer1/phase3/claim2_smoke
-
 echo "Smoke complete."

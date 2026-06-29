@@ -304,14 +304,14 @@ def main() -> None:
     parser.add_argument("--n-rows", type=int, default=100000000)
     parser.add_argument(
         "--raw-data-root", type=Path,
-        default=Path(os.environ.get("RAW_DATA_ROOT", "/work/u4063895/datasets")),
+        default=Path(os.environ.get("RAW_DATA_ROOT", "${WORK_DIR}/datasets")),
     )
     parser.add_argument(
         "--artifact-root", type=Path,
         default=Path(
             os.environ.get(
                 "RELIABILITY_ARTIFACT_ROOT",
-                "/work/u4063895/datasets/reliability_layer1",
+                "${WORK_DIR}/datasets/reliability_layer1",
             )
         ),
     )

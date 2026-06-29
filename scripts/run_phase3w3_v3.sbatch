@@ -8,12 +8,9 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=32G
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=u4063895@gs.ncku.edu.tw
-
 set -euo pipefail
-
-PROJ_DIR="/home/u4063895/workspace/gpu-byteplane-reliability-nmr"
-OUT_DIR="/work/u4063895/results/reliability_layer1/phase3/phase3w3_v3/job_${SLURM_JOB_ID}"
+PROJ_DIR="${PROJ_DIR}/workspace/gpu-byteplane-reliability-nmr"
+OUT_DIR="${WORK_DIR}/results/reliability_layer1/phase3/phase3w3_v3/job_${SLURM_JOB_ID}"
 trap_cleanup() { local rc=$?
   for f in "$PLANE0" "$PLANE1" "$PLANE2"; do
     local base=$(basename $f)
@@ -27,11 +24,9 @@ EOF
 }
 trap trap_cleanup EXIT
 mkdir -p "$OUT_DIR"
-
 module purge; ml load cmake/4.0.0 cuda/12.6
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
 if [[ "$GPU_NAME" != *"H200"* ]]; then echo "ERROR: Expected H200"; exit 2; fi
-
 cd "$PROJ_DIR"
 BUILD_DIR="benchmarks/experiment4_filter_aggregate/build"
 mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"
@@ -40,13 +35,11 @@ make -j bench_graded_nmr bench_filter_aggregate
 cd "$PROJ_DIR"
 NMR="./benchmarks/experiment4_filter_aggregate/build/bench_graded_nmr"
 FA="./benchmarks/experiment4_filter_aggregate/build/bench_filter_aggregate"
-
-HURRICANE_U="/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg_global"
-HURRICANE_RAW="/work/u4063895/datasets/locality_sensitivity/dev/hurricane_u.f64le.bin"
+HURRICANE_U="${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg_global"
+HURRICANE_RAW="${WORK_DIR}/datasets/locality_sensitivity/dev/hurricane_u.f64le.bin"
 PLANE0="$HURRICANE_U/plane_000.bin"
 PLANE1="$HURRICANE_U/plane_001.bin"
 PLANE2="$HURRICANE_U/plane_002.bin"
-
 fa_csv="$OUT_DIR/_fa.csv"
 $FA --dataset "$HURRICANE_U" --raw "$HURRICANE_RAW" \
     --threshold -2.31 --segment-rows 25000000 \
@@ -54,16 +47,13 @@ $FA --dataset "$HURRICANE_U" --raw "$HURRICANE_RAW" \
     --csv "$fa_csv" > /dev/null 2>&1
 B0_MS=$(python3 -c "import csv; r=csv.DictReader(open('$fa_csv')); print(next(r)['raw_baseline_ms_per_iter'])")
 B1_MS=$(python3 -c "import csv; r=csv.DictReader(open('$fa_csv')); print(next(r)['ms_per_iter'])")
-
 HEADER="dataset,selectivity,k,diversity_strategy,plane_id,ref_plane_id,fault_scenario,B0_ms,B1_ms,B2_ms,overhead_ms,margin_ms,overhead_fraction,B2_allowed,mismatch_count,certification_status,notes,sanity"
 echo "$HEADER" > "$OUT_DIR/w3_v3.csv"
-
 # Step 1: Backup originals and create true S0 replicas
 # plane_001 and plane_002 will be EXACT COPIES of plane_000 (S0 data)
 for f in "$PLANE0" "$PLANE1" "$PLANE2"; do
     cp "$f" "$OUT_DIR/_$(basename $f).orig"
 done
-
 # Overwrite plane_001 and plane_002 with S0 data from plane_000
 cp "$PLANE0" "$PLANE1"  # Now plane_001 = replica of S0
 cp "$PLANE0" "$PLANE2"  # Now plane_002 = replica of S0
@@ -78,7 +68,6 @@ if [ "$S0_CHECKSUM" != "$R1_CHECKSUM" ] || [ "$S0_CHECKSUM" != "$R2_CHECKSUM" ];
     exit 2
 fi
 echo "All replicas are true copies of S0 data. Sanity: PASS" | tee -a "$OUT_DIR/checksum.log"
-
 run_cell() {
     local DSTRAT=$1 PID=$2 RPID=$3 FSCEN=$4 LABEL=$5
     local nmr_csv="$OUT_DIR/_${DSTRAT}_${FSCEN}.csv"
@@ -90,12 +79,10 @@ run_cell() {
         --iters 30 --warmup 5 \
         --compare-mode segment_crc32 --fault no_fault \
         --csv "$nmr_csv" > /dev/null 2>&1
-
     local B2=$(python3 -c "import csv; r=csv.DictReader(open('$nmr_csv')); print(next(r)['b2_ms'])")
     local OVH=$(python3 -c "import csv; r=csv.DictReader(open('$nmr_csv')); print(next(r)['overhead_ms'])")
     local MIS=$(python3 -c "import csv; r=csv.DictReader(open('$nmr_csv')); print(next(r)['mismatches'])")
     local MARGIN=$(python3 -c "print(max(0,$B0_MS-$B1_MS))")
-
     python3 -c "
 m=$MARGIN; o=$OVH; b0=$B0_MS; b2=$B2
 of='NA'; al='NO'
@@ -105,7 +92,6 @@ with open('$OUT_DIR/w3_v3.csv','a') as f:
 "
     echo "  $DSTRAT $LABEL: mismatch=$MIS"
 }
-
 # Step 2: Sanity — no_fault baseline. ALL strategies must produce 0 mismatches.
 for entry in "D0:0:0" "D1:0:1" "D3:0:2"; do
     IFS=':' read -r dst pid rpid <<< "$entry"
@@ -121,7 +107,6 @@ for entry in "D0:0:0" "D1:0:1" "D3:0:2"; do
     echo "  --- $dst sanity (no_fault) ---"
     run_cell "$dst" "$pid" "$rpid" "no_fault" "sanity_no_fault"
 done
-
 # Step 3: F1 — single-target fault. Corrupt plane_000 only (the live replica).
 for entry in "D0:0:0" "D1:0:1" "D3:0:2"; do
     IFS=':' read -r dst pid rpid <<< "$entry"
@@ -143,7 +128,6 @@ d.tofile('$PLANE0')
     echo "  --- $dst F1 (single-target plane_000) ---"
     run_cell "$dst" "$pid" "$rpid" "F1" "F1_single_target"
 done
-
 # Step 4: F2 — common-mode same-file. Corrupt a segment in plane_000.
 # D0: both replicas from same corrupted file → 0 mismatches
 # D1/D3: live from corrupted file, ref from clean replica → 1 mismatch
@@ -167,7 +151,6 @@ d.tofile('$PLANE0')
     echo "  --- $dst F2 (common-mode same-file) ---"
     run_cell "$dst" "$pid" "$rpid" "F2" "F2_cm_samefile"
 done
-
 # Step 5: F3 — common-mode cross-file. Corrupt plane_000 AND plane_001.
 # D0: both from plane_000 (corrupted) → 0 mismatches
 # D1: live from plane_000 (corrupted), ref from plane_001 (ALSO corrupted) → 0 mismatches
@@ -193,7 +176,6 @@ for fn in ['$PLANE0','$PLANE1']:
     echo "  --- $dst F3 (common-mode cross-file) ---"
     run_cell "$dst" "$pid" "$rpid" "F3" "F3_cm_crossfile"
 done
-
 echo ""
 echo "=== W3 v3 Diversity Results (true S0 replicas) ==="
 rtk cat "$OUT_DIR/w3_v3.csv"

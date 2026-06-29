@@ -16,9 +16,7 @@
 #   sbatch --export=ALL,MAIN_JOB_ID=<id> scripts/review_exp3_uci_h200_smoke.sbatch
 #
 # Exits 0 always — this is a collector, not a gate.
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # Repo root
 # ---------------------------------------------------------------------------
@@ -28,7 +26,6 @@ else
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-
 # ---------------------------------------------------------------------------
 # Required env
 # ---------------------------------------------------------------------------
@@ -37,22 +34,18 @@ if [[ -z "$MAIN_JOB_ID" ]]; then
   echo "ERROR: MAIN_JOB_ID not set. Export via --export=ALL,MAIN_JOB_ID=<id>" >&2
   exit 0
 fi
-
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TIMESTAMP_SHORT="$(date +%Y%m%d_%H%M%S)"
-
 MARKER_DIR="${ROOT_DIR}/handoff/job_done"
 MARKER_FILE="${MARKER_DIR}/job_${MAIN_JOB_ID}.json"
 REVIEW_MD="${MARKER_DIR}/review_${MAIN_JOB_ID}.md"
 REVIEW_JSON="${MARKER_DIR}/review_${MAIN_JOB_ID}.json"
 LOG_DIR="${ROOT_DIR}/logs"
-
 mkdir -p "$MARKER_DIR"
-
 # ---------------------------------------------------------------------------
 # Helper: read a JSON string field via Python stdlib
 # ---------------------------------------------------------------------------
@@ -70,7 +63,6 @@ except Exception:
     print('')
 "
 }
-
 # ---------------------------------------------------------------------------
 # Helper: resolve a path (absolute stays; relative is prefixed with ROOT_DIR)
 # ---------------------------------------------------------------------------
@@ -82,7 +74,6 @@ resolve_path() {
     echo "${ROOT_DIR}/${p}"
   fi
 }
-
 # ---------------------------------------------------------------------------
 # Helper: file size or "missing"
 # ---------------------------------------------------------------------------
@@ -96,12 +87,10 @@ file_info() {
     echo "MISSING"
   fi
 }
-
 # ===========================================================================
 # 1. Marker
 # ===========================================================================
 echo "[$(date)] reading marker: ${MARKER_FILE}"
-
 MARKER_PRESENT=false
 RESULT_DIR=""
 RESULT_CSV=""
@@ -110,7 +99,6 @@ STDERR_PATH=""
 GIT_COMMIT=""
 JOB_NAME=""
 EXIT_STATUS=""
-
 if [[ -f "$MARKER_FILE" ]]; then
   MARKER_PRESENT=true
   RESULT_DIR="$(json_str_field "$MARKER_FILE" result_dir)"
@@ -124,12 +112,10 @@ if [[ -f "$MARKER_FILE" ]]; then
 else
   echo "[$(date)] marker NOT found"
 fi
-
 # ===========================================================================
 # 2. sacct summary
 # ===========================================================================
 echo "[$(date)] collecting sacct data for job ${MAIN_JOB_ID}"
-
 SACCT_OUTPUT=""
 SACCT_MAIN_STATE=""
 SACCT_MAIN_EXIT=""
@@ -137,11 +123,9 @@ SACCT_MAIN_ELAPSED=""
 SACCT_MAIN_NODE=""
 SACCT_MAIN_PARTITION=""
 SACCT_BATCH_MAXRSS=""
-
 if command -v sacct >/dev/null 2>&1; then
   SACCT_OUTPUT="$(sacct --format=JobID,JobName,State,ExitCode,Elapsed,NodeList,Partition,MaxRSS \
     --parsable2 --noheader -j "$MAIN_JOB_ID" 2>/dev/null || true)"
-
   if [[ -n "$SACCT_OUTPUT" ]]; then
     while IFS='|' read -r sacct_jobid sacct_jobname sacct_state sacct_exit sacct_elapsed sacct_node sacct_part sacct_rss; do
       # Only match the exact job ID (not .batch or .extern steps)
@@ -162,17 +146,14 @@ if command -v sacct >/dev/null 2>&1; then
 else
   echo "[$(date)] sacct not available"
 fi
-
 # ===========================================================================
 # 3. Log files
 # ===========================================================================
 echo "[$(date)] checking log files"
-
 STDOUT_ABS=""
 STDERR_ABS=""
 STDOUT_INFO=""
 STDERR_INFO=""
-
 if [[ -n "$STDOUT_PATH" ]]; then
   STDOUT_ABS="$(resolve_path "$STDOUT_PATH")"
   STDOUT_INFO="$(file_info "$STDOUT_ABS")"
@@ -181,22 +162,18 @@ if [[ -n "$STDERR_PATH" ]]; then
   STDERR_ABS="$(resolve_path "$STDERR_PATH")"
   STDERR_INFO="$(file_info "$STDERR_ABS")"
 fi
-
 echo "[$(date)] stdout (${STDOUT_ABS}): ${STDOUT_INFO}"
 echo "[$(date)] stderr (${STDERR_ABS}): ${STDERR_INFO}"
-
 # ===========================================================================
 # 4. Result CSV
 # ===========================================================================
 echo "[$(date)] checking result CSV"
-
 CSV_ABS=""
 CSV_INFO=""
 CSV_HEADER=""
 CSV_FIRST_ROW=""
 CSV_LAST_ROW=""
 CSV_ROW_COUNT=0
-
 if [[ -n "$RESULT_CSV" ]]; then
   CSV_ABS="$(resolve_path "$RESULT_CSV")"
   if [[ -f "$CSV_ABS" ]]; then
@@ -214,12 +191,10 @@ if [[ -n "$RESULT_CSV" ]]; then
   fi
 fi
 echo "[$(date)] csv (${CSV_ABS}): ${CSV_INFO}"
-
 # ===========================================================================
 # 5. Write Markdown review
 # ===========================================================================
 echo "[$(date)] writing ${REVIEW_MD}"
-
 {
   echo "# Review: Exp3 UCI H200 Smoke — Job ${MAIN_JOB_ID}"
   echo ""
@@ -318,17 +293,13 @@ echo "[$(date)] writing ${REVIEW_MD}"
   echo ""
   echo "*Review generated by job ${JOB_ID}*"
 } > "$REVIEW_MD"
-
 echo "[$(date)] markdown written: ${REVIEW_MD}"
-
 # ===========================================================================
 # 6. Write JSON review
 # ===========================================================================
 echo "[$(date)] writing ${REVIEW_JSON}"
-
 python3 -c "
 import json
-
 review = {
     'review_job_id': '${JOB_ID}',
     'main_job_id': '${MAIN_JOB_ID}',
@@ -355,14 +326,11 @@ review = {
         'row_count': ${CSV_ROW_COUNT}
     }
 }
-
 with open('${REVIEW_JSON}', 'w') as f:
     json.dump(review, f, indent=2)
     f.write(chr(10))
 "
-
 echo "[$(date)] JSON written: ${REVIEW_JSON}"
-
 # ===========================================================================
 # 7. Summary line
 # ===========================================================================

@@ -3,7 +3,7 @@
 
 Usage:
   python3 scripts/patch_fault_plan_ids.py \
-    --artifact-root /work/u4063895/datasets/reliability_layer1
+    --artifact-root ${WORK_DIR}/datasets/reliability_layer1
 """
 
 from __future__ import annotations

@@ -77,7 +77,7 @@ def main() -> int:
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path("/work/u4063895/datasets/synthetic/dev_buff_exp3"),
+        default=Path("${WORK_DIR}/datasets/synthetic/dev_buff_exp3"),
     )
     parser.add_argument("--csv-out", type=Path)
     args = parser.parse_args()

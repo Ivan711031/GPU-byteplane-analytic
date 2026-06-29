@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build/exp0}"
 RESULTS_BASE="${RESULTS_BASE:-$ROOT_DIR/results/exp0}"
-
 DEVICE="${DEVICE:-0}"
 BYTES_MIN="${BYTES_MIN:-1MB}"
 BYTES_MAX="${BYTES_MAX:-8GB}"
@@ -14,16 +12,13 @@ GRID_MUL="${GRID_MUL:-1}"
 WARMUP="${WARMUP:-10}"
 ITERS="${ITERS:-1000}"
 CUDA_ARCH="${CUDA_ARCH:-90}"
-
 MASK_STRIDE="${MASK_STRIDE:-2}"
 MASK_ACTIVE="${MASK_ACTIVE:-1}"
 GATHER_SPAN="${GATHER_SPAN:-0}"
 GATHER_SEED="${GATHER_SEED:-1}"
-
 join_cmd() {
   printf '%q ' "$@"
 }
-
 detect_gpu_name() {
   if command -v nvidia-smi >/dev/null 2>&1; then
     local name
@@ -37,7 +32,6 @@ detect_gpu_name() {
   fi
   printf 'unknown_gpu\n'
 }
-
 normalize_gpu_tag() {
   local raw="$1"
   local upper cleaned
@@ -56,7 +50,6 @@ normalize_gpu_tag() {
   fi
   printf '%s\n' "$cleaned"
 }
-
 git_branch="unknown"
 git_commit="unknown"
 git_dirty="unknown"
@@ -69,13 +62,11 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_dirty="dirty"
   fi
 fi
-
 timestamp="$(date +%Y%m%d_%H%M%S)"
 job_id="${SLURM_JOB_ID:-nojob}"
 gpu_name="${GPU_NAME_OVERRIDE:-$(detect_gpu_name)}"
 gpu_tag="$(normalize_gpu_tag "$gpu_name")"
 run_dir="$RESULTS_BASE/run_${timestamp}_job${job_id}_${gpu_tag}"
-
 cleanup_failed_run() {
   local status=$?
   if [[ $status -ne 0 && -n "${run_dir:-}" && -d "${run_dir}" ]]; then
@@ -84,19 +75,15 @@ cleanup_failed_run() {
   fi
 }
 trap cleanup_failed_run EXIT
-
 mkdir -p "$run_dir"
-
 cmake_args=(
   -S "$ROOT_DIR/benchmarks/experiment0"
   -B "$BUILD_DIR"
   -DCMAKE_BUILD_TYPE=Release
   "-DCMAKE_CUDA_ARCHITECTURES=$CUDA_ARCH"
 )
-
 cmake "${cmake_args[@]}"
 cmake --build "$BUILD_DIR" -j
-
 bin="$BUILD_DIR/bench_hbm_bw"
 common_args=(
   --device "$DEVICE"
@@ -104,15 +91,12 @@ common_args=(
   --block "$BLOCK" --grid_mul "$GRID_MUL"
   --warmup "$WARMUP" --iters "$ITERS"
 )
-
 seq_cmd=("$bin" --mode seq "${common_args[@]}" --csv "$run_dir/exp0_seq.csv")
 masked_cmd=("$bin" --mode masked "${common_args[@]}" --mask_stride "$MASK_STRIDE" --mask_active "$MASK_ACTIVE" --csv "$run_dir/exp0_masked.csv")
 gather_cmd=("$bin" --mode gather "${common_args[@]}" --gather_span "$GATHER_SPAN" --gather_seed "$GATHER_SEED" --csv "$run_dir/exp0_gather.csv")
-
 "${seq_cmd[@]}"
 "${masked_cmd[@]}"
 "${gather_cmd[@]}"
-
 meta_file="$run_dir/run_meta.txt"
 {
   printf 'timestamp=%s\n' "$timestamp"
@@ -133,20 +117,17 @@ meta_file="$run_dir/run_meta.txt"
   printf 'command_masked=%s\n' "$(join_cmd "${masked_cmd[@]}")"
   printf 'command_gather=%s\n' "$(join_cmd "${gather_cmd[@]}")"
 } > "$meta_file"
-
 {
   printf 'cd %q\n' "$ROOT_DIR"
   printf '%s\n' "$(join_cmd "${seq_cmd[@]}")"
   printf '%s\n' "$(join_cmd "${masked_cmd[@]}")"
   printf '%s\n' "$(join_cmd "${gather_cmd[@]}")"
 } > "$run_dir/repro_command.txt"
-
 {
   printf '# Adjust metrics and output path as needed.\n'
   printf 'cd %q\n' "$ROOT_DIR"
   printf 'ncu --set full --target-processes all --export %q %s\n' \
     "$run_dir/ncu_exp0_seq" "$(join_cmd "$bin" --mode seq "${common_args[@]}" --csv "$run_dir/exp0_seq_ncu.csv")"
 } > "$run_dir/ncu_command_template.txt"
-
 printf 'exp0 outputs in: %s\n' "$run_dir"
 printf 'metadata: %s\n' "$meta_file"

@@ -109,8 +109,8 @@ results/exp3/run_<timestamp>_job<jobid_or_nojob>_<gpu_tag>/
 
 ```bash
 ./build/exp3/export_encoded_dev_layout \
-  --input /work/u4063895/datasets/synthetic/dev/uniform.f64le.bin \
-  --output-root /work/u4063895/datasets/synthetic/dev_buff_exp3 \
+  --input ${WORK_DIR}/datasets/synthetic/dev/uniform.f64le.bin \
+  --output-root ${WORK_DIR}/datasets/synthetic/dev_buff_exp3 \
   --segment-size 4096 \
   [--precision-decimals N]
 ```
@@ -127,7 +127,7 @@ sbatch run_exp3_export_dev.sh
 ./build/exp3/bench_progressive_aggregation \
   --device 0 \
   --mode encoded_dev_subcolumns \
-  --encoded-root /work/u4063895/datasets/synthetic/dev_buff_exp3/uniform \
+  --encoded-root ${WORK_DIR}/datasets/synthetic/dev_buff_exp3/uniform \
   --refine_min 0 \
   --refine_max 8 \
   --load_strategy rowpack16 \
@@ -143,7 +143,7 @@ runner 也支援 real mode，預設 synthetic 不變：
 
 ```bash
 MODE=encoded_dev_subcolumns \
-ENCODED_ROOT=/work/u4063895/datasets/synthetic/dev_buff_exp3/uniform \
+ENCODED_ROOT=${WORK_DIR}/datasets/synthetic/dev_buff_exp3/uniform \
 VALIDATE=1 \
 ./scripts/run_exp3.sh
 ```

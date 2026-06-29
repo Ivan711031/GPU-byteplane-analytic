@@ -8,7 +8,7 @@ Usage:
     python3 scripts/run_phase3_p3b_prototype.py
 
 Outputs:
-    /work/u4063895/results/reliability_layer1/phase3/p3b_cpu_prototype/<run_id>/*.csv
+    ${WORK_DIR}/results/reliability_layer1/phase3/p3b_cpu_prototype/<run_id>/*.csv
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ import numpy as np
 # Constants
 # ---------------------------------------------------------------------------
 
-RESULTS_ROOT = Path("/work/u4063895/results/reliability_layer1/phase3/p3b_cpu_prototype")
-ARTIFACT_ROOT = Path("/work/u4063895/datasets/artifacts_phase1_5b")
+RESULTS_ROOT = Path("${WORK_DIR}/results/reliability_layer1/phase3/p3b_cpu_prototype")
+ARTIFACT_ROOT = Path("${WORK_DIR}/datasets/artifacts_phase1_5b")
 
 N_TOTAL_PLANES = 8
 PLANE_WEIGHTS = [1 << (8 * (5 - p)) for p in range(6)]  # [2^40, 2^32, 2^24, 2^16, 256, 1]

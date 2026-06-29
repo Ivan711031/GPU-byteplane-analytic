@@ -163,7 +163,7 @@ def eval_one_plane(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-root", type=Path, required=True,
-                        help="Root of active-delta artifacts, e.g. /work/u4063895/datasets/artifacts_phase1_5b")
+                        help="Root of active-delta artifacts, e.g. ${WORK_DIR}/datasets/artifacts_phase1_5b")
     parser.add_argument("--datasets", nargs="+",
                         default=["sensor", "uniform", "heavy_tailed", "zipfian"])
     parser.add_argument("--n-rows", type=int, default=100_000_000)

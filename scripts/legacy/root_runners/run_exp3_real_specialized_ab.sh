@@ -8,21 +8,17 @@
 #SBATCH --time=00:30:00
 #SBATCH --output=exp3_real_ab_%j.out
 #SBATCH --error=exp3_real_ab_%j.err
-
 set -euo pipefail
-
-DEFAULT_ROOT_DIR="/home/u4063895/workspace/gpu-byteplane-scan-experiments"
+DEFAULT_ROOT_DIR="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments"
 RESULTS_BASE_REL="results/exp3_real_specialized_ab"
-REAL_ENCODED_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p/uniform_p10"
+REAL_ENCODED_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p/uniform_p10"
 REAL_REFINE_DEPTH="5"
-
 is_repo_root() {
   local candidate="$1"
   [[ -n "$candidate" &&
      -f "$candidate/scripts/run_exp3.sh" &&
      -d "$candidate/benchmarks/experiment3" ]]
 }
-
 require_h200() {
   local gpu_name
   gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)"
@@ -34,7 +30,6 @@ require_h200() {
       ;;
   esac
 }
-
 ROOT_DIR="${EXP3_ROOT_DIR:-}"
 if ! is_repo_root "$ROOT_DIR"; then
   ROOT_DIR=""
@@ -47,26 +42,21 @@ if ! is_repo_root "$ROOT_DIR"; then
     exit 1
   fi
 fi
-
 if command -v module >/dev/null 2>&1; then
   module purge
   module load miniconda3/26.1.1 || true
   module load cuda/12.6 || true
 fi
-
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook)"
   conda activate gpu-byteplane-scan
 fi
-
 timestamp="$(date +%Y%m%d_%H%M%S)"
 job_id="${SLURM_JOB_ID:-nojob}"
 run_dir="${ROOT_DIR}/${RESULTS_BASE_REL}/run_${timestamp}_job${job_id}_H200"
 mkdir -p "$run_dir"
-
 require_h200
 cd "$ROOT_DIR"
-
 gpu_log="${run_dir}/gpu_util.csv"
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_log"
 (
@@ -78,13 +68,11 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_log"
   done
 ) &
 tracker_pid=$!
-
 cleanup() {
   kill "$tracker_pid" 2>/dev/null || true
   wait "$tracker_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
-
 {
   echo "timestamp=${timestamp}"
   echo "slurm_job_id=${SLURM_JOB_ID:-}"
@@ -103,18 +91,14 @@ trap cleanup EXIT
   nvcc --version || true
   echo "cuda_end"
 } > "${run_dir}/run_meta.txt"
-
 cmake -S benchmarks/experiment3 -B build/exp3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
 cmake --build build/exp3 -j
-
 bin="./build/exp3/bench_progressive_aggregation"
-
 run_case() {
   local variant="$1"
   local csv_path="${run_dir}/real_uniform_depth9_${variant}.csv"
   local stdout_path="${run_dir}/real_uniform_depth9_${variant}.stdout"
   local stderr_path="${run_dir}/real_uniform_depth9_${variant}.stderr"
-
   {
     echo "case=${variant}"
     echo "command_begin"
@@ -135,7 +119,6 @@ run_case() {
     echo
     echo "command_end"
   } >> "${run_dir}/run_meta.txt"
-
   "$bin" \
     --device 0 \
     --mode encoded_dev_subcolumns \
@@ -152,14 +135,11 @@ run_case() {
     --csv "$csv_path" \
     > "$stdout_path" 2> "$stderr_path"
 }
-
 run_case runtime
 run_case specialized
-
 {
   head -n 1 "${run_dir}/real_uniform_depth9_runtime.csv"
   tail -n 1 "${run_dir}/real_uniform_depth9_runtime.csv"
   tail -n 1 "${run_dir}/real_uniform_depth9_specialized.csv"
 } > "${run_dir}/comparison.csv"
-
 python scripts/summarize_exp3_real_ab.py "$run_dir" > "${run_dir}/summary.txt"

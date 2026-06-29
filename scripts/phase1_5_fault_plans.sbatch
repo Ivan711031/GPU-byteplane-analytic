@@ -5,21 +5,18 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=00:30:00
-#SBATCH --output=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_15_fp_%j.log
-#SBATCH --error=/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_15_fp_%j.err
+#SBATCH --output=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_15_fp_%j.log
+#SBATCH --error=${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_15_fp_%j.err
 set -euo pipefail
-
-REPO_ROOT="${REPO_ROOT:-/home/u4063895/gpu-byteplane-scan-experiments}"
+REPO_ROOT="${REPO_ROOT:-${PROJ_DIR}/gpu-byteplane-scan-experiments}"
 cd "$REPO_ROOT"
 JOB_ID="${SLURM_JOB_ID:-nojob}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-ART_ROOT="${RELIABILITY_ARTIFACT_ROOT:-/work/u4063895/datasets/reliability_layer1}"
+ART_ROOT="${RELIABILITY_ARTIFACT_ROOT:-${WORK_DIR}/datasets/reliability_layer1}"
 PARAMS_JSON="$REPO_ROOT/results/phase1_5_strategy_params.json"
 HANDOFF_DIR="$REPO_ROOT/handoff/job_done"
 mkdir -p "$HANDOFF_DIR"
-
 echo "[$TIMESTAMP] Phase 1.5 fault plan generation (job $JOB_ID)"
-
 for sid in native_scale1 per_dataset hybrid_scale100_plus_shifted; do
     echo "[$(date)] Generating fault plans for $sid..."
     RELIABILITY_ARTIFACT_ROOT="$ART_ROOT" \
@@ -32,9 +29,7 @@ for sid in native_scale1 per_dataset hybrid_scale100_plus_shifted; do
         --seeds 0-29
     echo "  Fault plans for $sid done"
 done
-
 echo "[$(date)] Fault plan generation complete"
-
 cat > "$HANDOFF_DIR/job_${JOB_ID}.json" <<EOF
 {
   "job_id": $JOB_ID,
@@ -42,7 +37,7 @@ cat > "$HANDOFF_DIR/job_${JOB_ID}.json" <<EOF
   "exit_status": 0,
   "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "workdir": "$REPO_ROOT",
-  "stdout": "/home/u4063895/gpu-byteplane-scan-experiments/logs/rl_15_fp_${JOB_ID}.log",
+  "stdout": "${PROJ_DIR}/gpu-byteplane-scan-experiments/logs/rl_15_fp_${JOB_ID}.log",
   "next_action": "Submit 12 canonical matrix GPU jobs (3 strategies x 4 datasets), then combined review"
 }
 EOF

@@ -8,18 +8,14 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=exp3_export_dev_%j.log
 #SBATCH --error=exp3_export_dev_%j.err
-
 set -euo pipefail
-
-DEFAULT_ROOT_DIR="/home/u4063895/workspace/gpu-byteplane-scan-experiments"
-
+DEFAULT_ROOT_DIR="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments"
 is_repo_root() {
   local candidate="$1"
   [[ -n "$candidate" &&
      -d "$candidate/benchmarks/experiment3" &&
      -x "$candidate/scripts/run_exp3_export_dev.sh" ]]
 }
-
 ROOT_DIR="${EXP3_ROOT_DIR:-}"
 if ! is_repo_root "$ROOT_DIR"; then
   ROOT_DIR=""
@@ -37,10 +33,8 @@ if ! is_repo_root "$ROOT_DIR"; then
     fi
   fi
 fi
-
 if command -v module >/dev/null 2>&1; then
   module purge
 fi
-
 cd "$ROOT_DIR"
 "$ROOT_DIR/scripts/run_exp3_export_dev.sh" "$@"

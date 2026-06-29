@@ -9,32 +9,25 @@
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
-ROOT_DIR="/home/u4063895/workspace/gpu-byteplane-scan-experiments"
+ROOT_DIR="${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments"
 cd "$ROOT_DIR"
-
 module purge
 module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 mkdir -p logs results/exp4 handoff/job_done
-
 # Hardware validation: must be H200
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
 if [[ ! "$GPU_NAME" =~ "H200" ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
-
 RESULT_DIR="results/exp4"
 GPU_LOG="logs/${SLURM_JOB_ID}_gpu_util.csv"
 HANDOFF_DIR="handoff/job_done"
 HANDOFF_MARKER="${HANDOFF_DIR}/job_${SLURM_JOB_ID}.json"
-
 echo "=== Job info ==="
 echo "JOB_ID=${SLURM_JOB_ID}"
 echo "HOST=$(hostname)"
@@ -47,7 +40,6 @@ nvcc --version
 echo "=== Git info ==="
 git rev-parse HEAD || true
 git status --short || true
-
 # GPU utilization tracker
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
 (
@@ -59,7 +51,6 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
   done
 ) &
 TRACKER_PID=$!
-
 write_handoff_marker() {
   status=$?
   kill "$TRACKER_PID" 2>/dev/null || true
@@ -83,28 +74,23 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 echo "=== Smoke Test Setup ==="
 echo "Testing uniform dataset with exact (exp3), p3, p6 artifacts"
 echo "Thresholds: 0, 500, 1000"
-
 # Define artifacts
 declare -A ARTIFACTS=(
-  [exact]="/work/u4063895/datasets/synthetic/dev_buff_exp3/uniform"
-  [p3]="/work/u4063895/datasets/synthetic/dev_buff_exp4_p3/uniform"
-  [p6]="/work/u4063895/datasets/synthetic/dev_buff_exp4_p6/uniform"
+  [exact]="${WORK_DIR}/datasets/synthetic/dev_buff_exp3/uniform"
+  [p3]="${WORK_DIR}/datasets/synthetic/dev_buff_exp4_p3/uniform"
+  [p6]="${WORK_DIR}/datasets/synthetic/dev_buff_exp4_p6/uniform"
 )
-
 # Thresholds to test
 THRESHOLDS=(0 500 1000)
-
 # Check that build exists
 if [[ ! -f "build/exp4/bench_progressive_filter" ]]; then
   echo "Building bench_progressive_filter..."
   cmake -S benchmarks/experiment4 -B build/exp4 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
   cmake --build build/exp4 -j
 fi
-
 # Run all combinations
 for precision in exact p3 p6; do
   artifact_root="${ARTIFACTS[$precision]}"
@@ -137,7 +123,6 @@ for precision in exact p3 p6; do
     fi
   done
 done
-
 echo ""
 echo "=== Smoke test complete ==="
 echo "Results in: $RESULT_DIR/"

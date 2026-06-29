@@ -8,35 +8,26 @@
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
-
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
 module purge
 module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 cd "$ROOT_DIR"
-
 : "${ENCODED_ROOT:?set ENCODED_ROOT to the uniform encoded dataset root}"
-
 mkdir -p logs results/exp4 handoff/job_done
-
 # Hardware validation: must be H200
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ')
 if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
-
 RESULT_CSV="results/exp4/smoke_matrix_${SLURM_JOB_ID}.csv"
 GPU_LOG="logs/${SLURM_JOB_ID}_gpu_util.csv"
 HANDOFF_DIR="handoff/job_done"
 HANDOFF_MARKER="${HANDOFF_DIR}/job_${SLURM_JOB_ID}.json"
-
 echo "=== Job info ==="
 echo "JOB_ID=${SLURM_JOB_ID}"
 echo "HOST=$(hostname)"
@@ -49,7 +40,6 @@ nvcc --version
 echo "=== Git info ==="
 git rev-parse HEAD || true
 git status --short || true
-
 # GPU utilization tracker
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
 (
@@ -61,7 +51,6 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
   done
 ) &
 TRACKER_PID=$!
-
 write_handoff_marker() {
   status=$?
   kill "$TRACKER_PID" 2>/dev/null || true
@@ -85,11 +74,9 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 echo "=== Build ==="
 cmake -S benchmarks/experiment4 -B build/exp4 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90
 cmake --build build/exp4 -j
-
 echo "=== Smoke Test 1: uniform threshold=500.0 ==="
 ./build/exp4/bench_progressive_filter \
   --device 0 \
@@ -97,7 +84,6 @@ echo "=== Smoke Test 1: uniform threshold=500.0 ==="
   --threshold 500.0 \
   --validate \
   --csv results/exp4/smoke_uniform_500_${SLURM_JOB_ID}.csv
-
 echo "=== Smoke Test 2: uniform threshold=0.0 ==="
 ./build/exp4/bench_progressive_filter \
   --device 0 \
@@ -105,7 +91,6 @@ echo "=== Smoke Test 2: uniform threshold=0.0 ==="
   --threshold 0.0 \
   --validate \
   --csv results/exp4/smoke_uniform_0_${SLURM_JOB_ID}.csv
-
 echo "=== Smoke Test 3: uniform threshold=1000.0 ==="
 ./build/exp4/bench_progressive_filter \
   --device 0 \
@@ -113,5 +98,4 @@ echo "=== Smoke Test 3: uniform threshold=1000.0 ==="
   --threshold 1000.0 \
   --validate \
   --csv results/exp4/smoke_uniform_1000_${SLURM_JOB_ID}.csv
-
 echo "=== Smoke matrix complete ==="

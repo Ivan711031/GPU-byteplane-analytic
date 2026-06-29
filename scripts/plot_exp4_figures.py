@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 # ============================================================================
 # Paths
 # ============================================================================
-ROOT = "/home/u4063895/workspace/gpu-byteplane-scan-experiments"
+ROOT = "${PROJ_DIR}/workspace/gpu-byteplane-scan-experiments"
 CSV1 = f"{ROOT}/results/exp4/run_20260430_140204_job34118_NVIDIAH200/sweep_summary.csv"
 CSV2 = f"{ROOT}/results/exp4/run_20260430_165744_job34323_NVIDIAH200/sweep_summary.csv"
 OUT_DIR = f"{ROOT}/results/exp4/plots"

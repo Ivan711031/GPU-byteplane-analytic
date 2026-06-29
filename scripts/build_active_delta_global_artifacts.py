@@ -4,9 +4,9 @@
 Generates canonical 8-plane active-delta artifacts from Phase 1.5 raw data,
 with full contract-compliant metadata (checksums, occupancy, entropy).
 
-Usage (nano5 raw data):
+Usage (CLUSTER_HOST raw data):
   python3 scripts/build_active_delta_global_artifacts.py \
-    --raw-data-root /work/u4063895/datasets/reliability_layer1_phase1_5 \
+    --raw-data-root ${WORK_DIR}/datasets/reliability_layer1_phase1_5 \
     --strategy-params results/phase1_5_strategy_params.json \
     --artifact-root /path/to/artifacts_phase1_5b \
     --datasets sensor uniform heavy_tailed zipfian \

@@ -22,7 +22,6 @@
 #       bench.csv
 #       bench.log
 #   handoff/job_done/job_<SLURM_JOB_ID>.json
-
 #SBATCH --job-name=exp4-bm-kspec-smoke
 #SBATCH --partition=dev
 #SBATCH --nodes=1
@@ -31,9 +30,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   ROOT_DIR="$SLURM_SUBMIT_DIR"
 else
@@ -44,29 +41,23 @@ if [[ ! -d "$ROOT_DIR" ]]; then
   exit 2
 fi
 cd "$ROOT_DIR"
-
-V2_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
-RAW_ROOT="/work/u4063895/datasets/synthetic/dev"
-
+V2_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
+RAW_ROOT="${WORK_DIR}/datasets/synthetic/dev"
 declare -A DATASET_P
 DATASET_P[heavy_tailed]="p6"
 DATASET_P[zipfian]="p8"
-
 timestamp=$(date +%Y%m%d_%H%M%S)
 job_id="${SLURM_JOB_ID:-local}"
 GPU_NAME="unknown"
 GPU_TAG="unknown"
-
 if command -v nvidia-smi &>/dev/null; then
   GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | tr -d ' ' 2>/dev/null || echo "unknown")
   GPU_TAG="${GPU_NAME// /_}"
   GPU_TAG="${GPU_TAG:-unknown}"
 fi
-
 run_dir="${ROOT_DIR}/results/exp4/byte_mask_kspecialized_smoke_${timestamp}_job${job_id}_${GPU_TAG}"
 handoff_dir="${ROOT_DIR}/handoff/job_done"
 handoff_marker="${handoff_dir}/job_${job_id}.json"
-
 write_handoff_marker() {
   local status=$?
   if [[ -n "${TRACKER_PID:-}" ]]; then
@@ -103,13 +94,11 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
 mkdir -p "$run_dir" "$handoff_dir"
-
 gpu_util_log="${run_dir}/gpu_util.csv"
 echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_util_log"
 (
@@ -121,18 +110,15 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_util_log"
   done
 ) &
 TRACKER_PID=$!
-
 module purge || true
 module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 echo "=== Toolchain ===" >&2
 echo "nvcc: $(which nvcc) $($(which nvcc) --version 2>&1 | grep release)" >&2
 echo "gcc: $(gcc --version 2>&1 | head -1)" >&2
 echo "cmake: $(cmake --version 2>&1 | head -1)" >&2
-
 echo "=== Job info ===" >&2
 echo "Job ID: ${job_id}  Host: $(hostname)  GPU: ${GPU_NAME}" >&2
 echo "Output: ${run_dir}" >&2
@@ -140,17 +126,14 @@ nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,nohea
 git rev-parse HEAD >&2
 git status --short >&2
 echo "" >&2
-
 echo "=== Build ===" >&2
 cmake -S benchmarks/experiment4 -B build/exp4 \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90 2>&1
 cmake --build build/exp4 -j 2>&1
 echo "" >&2
-
 BENCH_BIN="${ROOT_DIR}/build/exp4/bench_progressive_filter"
 summary_csv="${run_dir}/summary.csv"
 echo "case_id,dataset,selectivity,k,strategy,max_filter_planes,validated,gpu_count,cpu_encoded_count,ms_per_iter,status,csv" > "$summary_csv"
-
 declare -A THRESHOLD_CACHE
 compute_threshold() {
   local dataset="$1" selectivity="$2"
@@ -174,7 +157,6 @@ print(np.quantile(data, ${quantile}))
   THRESHOLD_CACHE["$cache_key"]="$threshold"
   printf '%s\n' "$threshold"
 }
-
 # Each entry: case_id dataset selectivity k_label mfp strategy
 declare -a CASES
 CASES+=("A heavy_tailed 99 full NA byte_mask")
@@ -187,11 +169,9 @@ CASES+=("D zipfian 99 k4 4 byte_mask")
 CASES+=("D zipfian 99 k4 4 byte_mask_specialized_k4")
 CASES+=("E heavy_tailed 99 k1 1 byte_mask")
 CASES+=("E heavy_tailed 99 k1 1 byte_mask_specialized_k1")
-
 total_ok=0
 total_fail=0
 SUBFAILURES=()
-
 for entry in "${CASES[@]}"; do
   read -r case_id dataset sel k_label mfp strategy <<< "$entry"
   artifact_p="${DATASET_P[$dataset]}"
@@ -199,13 +179,11 @@ for entry in "${CASES[@]}"; do
   threshold=$(compute_threshold "$dataset" "$sel")
   case_dir="${run_dir}/case_${case_id}_${strategy}"
   mkdir -p "$case_dir"
-
   echo "" >&2
   echo "============================================================" >&2
   echo "[${case_id}_${strategy}] dataset=${dataset} sel=${sel} k=${k_label} mfp=${mfp}" >&2
   echo "============================================================" >&2
   echo "  threshold=${threshold}" >&2
-
   bench_csv="${case_dir}/bench.csv"
   bench_log="${case_dir}/bench.log"
   set +e
@@ -220,7 +198,6 @@ for entry in "${CASES[@]}"; do
   fi
   bench_rc=$?
   set -e
-
   validated="false"
   gpu_count="NA"
   cpu_encoded="NA"
@@ -243,16 +220,13 @@ for entry in "${CASES[@]}"; do
     echo "  ✗ CSV not found (rc=${bench_rc})" >&2
     SUBFAILURES+=("${case_id}_${strategy}: CSV not found")
   fi
-
   echo "${case_id},${dataset},${sel},${k_label},${strategy},${mfp},${validated},${gpu_count},${cpu_encoded},${ms_per_iter},${status},${bench_csv}" >> "$summary_csv"
-
   if [[ "$status" == "PASS" ]]; then
     total_ok=$((total_ok + 1))
   else
     total_fail=$((total_fail + 1))
   fi
 done
-
 cat > "${run_dir}/run_meta.txt" <<EOF
 job_id=${job_id}
 job_name=exp4-bm-kspec-smoke
@@ -264,7 +238,6 @@ cases=A,B,C,D,E
 block=256 warmup=5 iters=50 validate=on
 summary_csv=${summary_csv}
 EOF
-
 echo "" >&2
 echo "=== Summary ===" >&2
 echo "ok=${total_ok} fail=${total_fail}" >&2
@@ -274,5 +247,4 @@ if (( total_fail > 0 )); then
   printf '  %s\n' "${SUBFAILURES[@]}" >&2
   exit 1
 fi
-
 echo "DONE" >&2

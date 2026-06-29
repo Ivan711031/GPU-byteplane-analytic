@@ -21,7 +21,6 @@
 #     failures.txt               — gate failure details (if any)
 #     gpu_util.csv               — GPU utilization log
 #   handoff/job_done/job_<SLURM_JOB_ID>.json
-
 #SBATCH --job-name=exp4-byte-mask-smoke
 #SBATCH --partition=dev
 #SBATCH --nodes=1
@@ -30,9 +29,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=01:00:00
 #SBATCH --mail-type=END,FAIL
-
 set -euo pipefail
-
 # ==============================================================================
 # Environment
 # ==============================================================================
@@ -41,7 +38,6 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 # ==============================================================================
 # Dynamic workspace detection
 # ==============================================================================
@@ -55,7 +51,6 @@ if [[ ! -d "$ROOT_DIR" ]]; then
   exit 2
 fi
 cd "$ROOT_DIR"
-
 # ==============================================================================
 # GPU identification
 # ==============================================================================
@@ -66,13 +61,11 @@ if command -v nvidia-smi &>/dev/null; then
   GPU_TAG="${GPU_NAME// /_}"
   GPU_TAG="${GPU_TAG:-unknown}"
 fi
-
 # ==============================================================================
 # Paths (set up before trap so handoff marker knows where to write)
 # ==============================================================================
-V2_ROOT="/work/u4063895/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
-RAW_ROOT="/work/u4063895/datasets/synthetic/dev"
-
+V2_ROOT="${WORK_DIR}/datasets/synthetic/dev_buff_v2_20260510/exp_runtime_by_p"
+RAW_ROOT="${WORK_DIR}/datasets/synthetic/dev"
 timestamp=$(date +%Y%m%d_%H%M%S)
 job_id="${SLURM_JOB_ID:-local}"
 run_dir="${ROOT_DIR}/results/exp4/byte_mask_smoke_${timestamp}_job${job_id}_${GPU_TAG}"
@@ -83,19 +76,16 @@ summary_csv="${run_dir}/summary_pairs.csv"
 meta_file="${run_dir}/run_meta.txt"
 failures_file="${run_dir}/failures.txt"
 gpu_util_log="${run_dir}/gpu_util.csv"
-
 # ==============================================================================
 # Matrix definition
 # ==============================================================================
 declare -a MATRIX_ENTRIES=()
 declare -a MATRIX_LABELS=()
-
 register_run() {
   local label="$1"
   MATRIX_LABELS+=("$label")
   MATRIX_ENTRIES+=("$label|$2|$3|$4|$5|$6|$7")
 }
-
 # Format: dataset, artifact_p, encoded_subdir
 for dataset_info in "heavy_tailed|p6|heavy_tailed_p6" "uniform|p10|uniform_p10" "zipfian|p8|zipfian_p8"; do
   IFS='|' read -r dataset artifact_p encoded_subdir <<< "$dataset_info"
@@ -110,14 +100,11 @@ for dataset_info in "heavy_tailed|p6|heavy_tailed_p6" "uniform|p10|uniform_p10" 
     done
   done
 done
-
 TOTAL_RUNS=${#MATRIX_ENTRIES[@]}
-
 # ==============================================================================
 # Threshold computation helper
 # ==============================================================================
 declare -A THRESHOLD_CACHE
-
 compute_threshold() {
   local dataset="$1" selectivity="$2"
   local cache_key="${dataset}_s${selectivity}"
@@ -140,7 +127,6 @@ print(np.quantile(data, ${quantile}))
   THRESHOLD_CACHE["$cache_key"]="$threshold"
   printf '%s\n' "$threshold"
 }
-
 # ==============================================================================
 # Handoff marker via trap
 # ==============================================================================
@@ -178,7 +164,6 @@ write_handoff_marker() {
 EOF
 }
 trap write_handoff_marker EXIT
-
 # ==============================================================================
 # Hardware validation: must be H200
 # ==============================================================================
@@ -186,12 +171,10 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   echo "ERROR: Expected H200, but found: $GPU_NAME" >&2
   exit 2
 fi
-
 # ==============================================================================
 # Create output directories
 # ==============================================================================
 mkdir -p "$run_dir" "$handoff_dir"
-
 # ==============================================================================
 # GPU utilization tracker (background)
 # ==============================================================================
@@ -205,7 +188,6 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$gpu_util_log"
   done
 ) &
 TRACKER_PID=$!
-
 # ==============================================================================
 # Toolchain verification
 # ==============================================================================
@@ -213,7 +195,6 @@ echo "=== Toolchain ===" >&2
 echo "nvcc: $(which nvcc) $($(which nvcc) --version 2>&1 | grep release)" >&2
 echo "gcc: $(gcc --version 2>&1 | head -1)" >&2
 echo "cmake: $(cmake --version 2>&1 | head -1)" >&2
-
 # ==============================================================================
 # Job metadata header
 # ==============================================================================
@@ -229,7 +210,6 @@ echo "=== Git ===" >&2
 git rev-parse HEAD >&2
 git status --short >&2
 echo "" >&2
-
 # ==============================================================================
 # Build
 # ==============================================================================
@@ -238,7 +218,6 @@ cmake -S benchmarks/experiment4 -B build/exp4 \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=90 2>&1
 cmake --build build/exp4 -j 2>&1
 echo "" >&2
-
 # ==============================================================================
 # Validation: ensure all encoded roots exist
 # ==============================================================================
@@ -257,26 +236,21 @@ for entry in "${MATRIX_ENTRIES[@]}"; do
   fi
 done
 echo "" >&2
-
 # ==============================================================================
 # Run matrix
 # ==============================================================================
 declare -a CSV_FILES=()
 declare -a GATE_FAILURES=()
 HEADER_WRITTEN=0
-
 run_idx=0
 for entry in "${MATRIX_ENTRIES[@]}"; do
   IFS='|' read -r label dataset encoded_subdir sel block rep strategy <<< "$entry"
   ((++run_idx))
-
   encoded_root="${V2_ROOT}/${encoded_subdir}"
   threshold=$(compute_threshold "$dataset" "$sel")
   log_file="${run_dir}/run_${label}.log"
   csv_file="${run_dir}/run_${label}.csv"
-
   echo "[${run_idx}/${TOTAL_RUNS}] ${label}  (threshold=${threshold}, block=${block}, strategy=${strategy})" >&2
-
   # Build and run benchmark
   set +e
   "${ROOT_DIR}/build/exp4/bench_progressive_filter" \
@@ -292,19 +266,16 @@ for entry in "${MATRIX_ENTRIES[@]}"; do
     2> "$log_file"
   rc=$?
   set -e
-
   if [[ $rc -ne 0 ]]; then
     echo "  ✗ Benchmark exit code ${rc}" >&2
     GATE_FAILURES+=("${label}_EXIT${rc}")
     continue
   fi
-
   if [[ ! -f "$csv_file" ]]; then
     echo "  ✗ No CSV produced" >&2
     GATE_FAILURES+=("${label}_NOCSV")
     continue
   fi
-
   # Validate correctness gate from CSV:
   #   gpu_count      = f12
   #   cpu_encoded_count = f13
@@ -312,19 +283,16 @@ for entry in "${MATRIX_ENTRIES[@]}"; do
   gpu_count=$(tail -1 "$csv_file" | cut -d',' -f12)
   cpu_encoded=$(tail -1 "$csv_file" | cut -d',' -f13)
   validated=$(tail -1 "$csv_file" | cut -d',' -f29)
-
   if [[ "$gpu_count" != "$cpu_encoded" ]]; then
     echo "  ✗ GATE FAILURE: gpu=${gpu_count} cpu_enc=${cpu_encoded}" >&2
     GATE_FAILURES+=("${label}_gpu${gpu_count}_cpu${cpu_encoded}")
     continue
   fi
-
   if [[ "$validated" != "true" ]]; then
     echo "  ✗ GATE FAILURE: validated=${validated} (expected true)" >&2
     GATE_FAILURES+=("${label}_val${validated}")
     continue
   fi
-
   # Append to combined CSV
   if [[ "$HEADER_WRITTEN" -eq 0 ]]; then
     head -1 "$csv_file" > "$combined_csv"
@@ -332,26 +300,20 @@ for entry in "${MATRIX_ENTRIES[@]}"; do
   fi
   tail -1 "$csv_file" >> "$combined_csv"
   CSV_FILES+=("$csv_file")
-
   echo "  ✓ gpu=${gpu_count} cpu=${cpu_encoded} validated=${validated}" >&2
 done
-
 echo "" >&2
-
 # ==============================================================================
 # Results summary
 # ==============================================================================
 PASSED_COUNT=${#CSV_FILES[@]}
 FAILED_COUNT=${#GATE_FAILURES[@]}
-
 echo "=== Results ===" >&2
 echo "Total: ${TOTAL_RUNS}  Passed: ${PASSED_COUNT}  Failed: ${FAILED_COUNT}" >&2
-
 if [[ "$HEADER_WRITTEN" -eq 1 ]]; then
   row_count=$(tail -n +2 "$combined_csv" | wc -l)
   echo "Combined CSV: ${combined_csv} (${row_count} rows)" >&2
 fi
-
 # ==============================================================================
 # Build summary_pairs.csv: pair predicated vs byte_mask per (dataset, sel, block, rep)
 # CSV columns: dataset,selectivity,block,rep,predicated_ms,byte_mask_ms,speedup
@@ -361,15 +323,12 @@ if [[ "$HEADER_WRITTEN" -eq 1 ]]; then
   export run_dir
   python3 << 'PYEOF'
 import csv, os, re, glob
-
 run_dir = os.environ.get('run_dir', '')
 if not run_dir:
     print("ERROR: run_dir not set", file=__import__('sys').stderr)
     __import__('sys').exit(1)
-
 # Pattern: run_{dataset}_p{artifact_p}_s{sel}_b{block}_r{rep}_{strategy}.csv
 pat = re.compile(r'run_(\w+)_p(\w+)_s(\d+)_b(\d+)_r(\d+)_(predicated|byte_mask)\.csv$')
-
 # Collect ms_per_iter from each per-run CSV
 records = []  # (dataset, artifact_p, sel, block, rep, strategy, ms)
 for fname in os.listdir(run_dir):
@@ -390,7 +349,6 @@ for fname in os.listdir(run_dir):
     except (csv.Error, ValueError, IndexError, OSError):
         continue
     records.append((dataset, artifact_p, int(sel), int(block), int(rep), strategy, ms))
-
 # Group and pair
 pairs = {}
 for dataset, ap, sel, block, rep, strategy, ms in records:
@@ -398,7 +356,6 @@ for dataset, ap, sel, block, rep, strategy, ms in records:
     if key not in pairs:
         pairs[key] = {}
     pairs[key][strategy] = ms
-
 outpath = os.path.join(run_dir, 'summary_pairs.csv')
 with open(outpath, 'w', newline='') as f:
     w = csv.writer(f)
@@ -416,11 +373,9 @@ with open(outpath, 'w', newline='') as f:
         elif byte_ms is not None:
             w.writerow([f'{dataset}_p{ap}', sel, block, rep,
                         'NA', f'{byte_ms:.6f}', 'NA'])
-
 print(f"  Wrote {outpath} ({len(pairs)} row(s))")
 PYEOF
 fi
-
 # Write failure details
 if [[ ${#GATE_FAILURES[@]} -gt 0 ]]; then
   {
@@ -431,13 +386,11 @@ if [[ ${#GATE_FAILURES[@]} -gt 0 ]]; then
   } > "$failures_file"
   echo "Failures written to: ${failures_file}" >&2
 fi
-
 # ==============================================================================
 # run_meta.txt
 # ==============================================================================
 cat > "$meta_file" <<METAEOF
 === Exp4 Byte-Mask Strategy Smoke — run_meta ===
-
 Date: $(date -Is)
 Host: $(hostname)
 GPU: ${GPU_NAME}
@@ -445,33 +398,27 @@ Job ID: ${job_id}
 Git commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)
 Git status:
 $(git status --short 2>/dev/null || echo "  (not a git repo)")
-
 === Toolchain ===
 nvcc version: $($(which nvcc) --version 2>&1 | grep release || echo unknown)
 gcc version: $(gcc --version 2>&1 | head -1)
 cmake version: $(cmake --version 2>&1 | head -1)
-
 === Matrix ===
 Strategies: predicated byte_mask
 Repeats per combo: 3
 Artifact root: ${V2_ROOT}
 Raw root: ${RAW_ROOT}
-
 Dataset entries:
 $(for entry in "${MATRIX_ENTRIES[@]}"; do
   IFS='|' read -r label dataset encoded_subdir sel block rep strategy <<< "$entry"
   echo "  ${label}"
 done)
-
 === Dataset mapping ===
   heavy_tailed → heavy_tailed_p6 (max_planes=8)
   uniform      → uniform_p10      (max_planes=6)
   zipfian      → zipfian_p8       (max_planes=8)
-
 === Threshold derivation ===
   thresholds = np.quantile(raw_data, 1 - selectivity/100)
   raw files: ${RAW_ROOT}/{dataset}.f64le.bin
-
 === Results ===
 Total runs: ${TOTAL_RUNS}
 Passed:     ${PASSED_COUNT}
@@ -480,9 +427,7 @@ Output dir: ${run_dir}
 Combined CSV: ${combined_csv}
 Summary CSV: ${summary_csv}
 METAEOF
-
 echo "Meta: ${meta_file}" >&2
-
 # ==============================================================================
 # Exit with nonzero if any gate failures
 # ==============================================================================
@@ -490,6 +435,5 @@ if [[ ${#GATE_FAILURES[@]} -gt 0 ]]; then
   echo "⚠ ${FAILED_COUNT} gate failure(s) — exiting nonzero" >&2
   exit 1
 fi
-
 echo "✓ All gates passed" >&2
 exit 0

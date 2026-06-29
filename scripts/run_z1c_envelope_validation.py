@@ -241,8 +241,8 @@ def run_cell(
 
 def main() -> None:
     datasets = [
-        ("cesm_atm_cloud", Path("/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096"), 24756224),
-        ("hurricane_u", Path("/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096"), 0),
+        ("cesm_atm_cloud", Path("${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096"), 24756224),
+        ("hurricane_u", Path("${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096"), 0),
     ]
     functionals = ["count", "filtered_sum"]
     fault_modes = ["single", "saturating"]

@@ -5,9 +5,9 @@ Builds smoke artifacts using the active-delta-global encoding to test whether
 plane 0 / plane 1 can become meaningful active byte planes (rather than
 fixed-container headroom planes).
 
-Usage (WSL → nano5 via sshpass):
+Usage (WSL → CLUSTER_HOST via sshpass):
   python3 scripts/probe_active_delta_global_artifacts.py \
-    --raw-data-root /work/u4063895/datasets/reliability_layer1_phase1_5 \
+    --raw-data-root ${WORK_DIR}/datasets/reliability_layer1_phase1_5 \
     --artifact-root /tmp/probe_active_delta_global \
     --strategy-params results/phase1_5_strategy_params.json \
     --datasets sensor uniform heavy_tailed zipfian \
@@ -296,7 +296,7 @@ def main() -> None:
     parser.add_argument("--n-rows", type=int, default=10000000)
     parser.add_argument("--seed", type=int, default=20260413)
     parser.add_argument("--synth", action="store_true",
-                        help="Use synthetic data (no nano5 raw data needed)")
+                        help="Use synthetic data (no CLUSTER_HOST raw data needed)")
 
     args = parser.parse_args()
 

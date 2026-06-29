@@ -19,9 +19,7 @@
 #
 # Usage:
 #   sbatch --account=<PROJECT_ID> scripts/run_scientific_locality_attribution.sbatch
-
 set -euo pipefail
-
 # ---------------------------------------------------------------------------
 # H200 fail-fast gate
 # ---------------------------------------------------------------------------
@@ -31,7 +29,6 @@ if [[ "$GPU_NAME" != *"H200"* ]]; then
   exit 2
 fi
 echo "GPU: $GPU_NAME"
-
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
@@ -40,30 +37,23 @@ module load miniconda3/26.1.1
 module load cuda/12.6
 eval "$(conda shell.bash hook)"
 conda activate gpu-byteplane-scan
-
 ROOT_DIR="/home/$USER/workspace/gpu-byteplane-scan-experiments"
 if [[ ! -d "$ROOT_DIR" ]]; then exit 2; fi
 cd "$ROOT_DIR"
-
 which nvcc
 cmake --version | head -1
 gcc --version | head -1
-
 # ---------------------------------------------------------------------------
 # Phase 1: Generate locality artifacts
 # ---------------------------------------------------------------------------
 LOCALITY_ROOT="$ROOT_DIR/datasets/locality_sensitivity"
 BUFF_TOOL="$ROOT_DIR/bin/buff_tool"
-
 # Raw data paths
 RAW_CESM="$ROOT_DIR/results/buff_encoder_v2/raw_scientific/cesm_atm_cloud.f64le.bin"
 RAW_HURRICANE="$ROOT_DIR/results/buff_encoder_v2/raw_scientific/hurricane_u.f64le.bin"
-
 # Precision settings (p12/dec12 for scientific, matching Task 3)
 PRECISION_POWER=12
-
 echo "[$(date -Is)] Phase 1: Generating locality artifacts"
-
 # Function to generate and export an artifact
 generate_artifact() {
   local DATASET="$1"
@@ -71,16 +61,13 @@ generate_artifact() {
   local SEG_LABEL="$3"
   local RAW_PATH="$4"
   local VALUE_COUNT="$5"
-
   local OUT_DIR="$LOCALITY_ROOT/$DATASET/$SEG_LABEL"
   if [[ -d "$OUT_DIR" && -f "$OUT_DIR/summary.json" ]]; then
     echo "  SKIP: $OUT_DIR already exists"
     return 0
   fi
-
   local ENCODED_DIR="$LOCALITY_ROOT/${DATASET}_${SEG_LABEL}_encoded"
   mkdir -p "$ENCODED_DIR" "$OUT_DIR"
-
   echo "  Encoding $DATASET/$SEG_LABEL (segment_size=$SEG_SIZE, value_count=$VALUE_COUNT)..."
   if ! $BUFF_TOOL encode \
       --input "$RAW_PATH" \
@@ -90,7 +77,6 @@ generate_artifact() {
     echo "  FAIL: encode failed for $DATASET/$SEG_LABEL"
     return 1
   fi
-
   echo "  Exporting runtime artifacts for $DATASET/$SEG_LABEL..."
   if ! $BUFF_TOOL export-runtime \
       --input "$ENCODED_DIR/${DATASET}_${SEG_LABEL}.buff64" \
@@ -100,27 +86,21 @@ generate_artifact() {
     echo "  FAIL: export-runtime failed for $DATASET/$SEG_LABEL"
     return 1
   fi
-
   echo "  Done: $OUT_DIR"
   return 0
 }
-
 mkdir -p "$LOCALITY_ROOT"
-
 # cesm_atm_cloud: 168,480,000 rows
 CESM_ROWS=168480000
 generate_artifact "cesm_atm_cloud" "4096" "seg4096" "$RAW_CESM" "$CESM_ROWS"
 generate_artifact "cesm_atm_cloud" "65536" "seg65536" "$RAW_CESM" "$CESM_ROWS"
 generate_artifact "cesm_atm_cloud" "$CESM_ROWS" "seg_global" "$RAW_CESM" "$CESM_ROWS"
-
 # hurricane_u: 25,000,000 rows
 HURRICANE_ROWS=25000000
 generate_artifact "hurricane_u" "4096" "seg4096" "$RAW_HURRICANE" "$HURRICANE_ROWS"
 generate_artifact "hurricane_u" "65536" "seg65536" "$RAW_HURRICANE" "$HURRICANE_ROWS"
 generate_artifact "hurricane_u" "$HURRICANE_ROWS" "seg_global" "$RAW_HURRICANE" "$HURRICANE_ROWS"
-
 echo "[$(date -Is)] Phase 1 complete: Locality artifacts generated"
-
 # ---------------------------------------------------------------------------
 # Phase 2: Build benchmark binary
 # ---------------------------------------------------------------------------
@@ -131,16 +111,13 @@ cmake -S "$ROOT_DIR/benchmarks/experiment4_filter_aggregate" -B "$BUILD_DIR" \
   -DCMAKE_CUDA_ARCHITECTURES=90 \
   -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -3
 cmake --build "$BUILD_DIR" -j$(nproc) 2>&1 | tail -3
-
 BENCH="$BUILD_DIR/bench_filter_aggregate"
-
 # ---------------------------------------------------------------------------
 # Phase 2: Run attribution sweep
 # ---------------------------------------------------------------------------
 JOB_ID="${SLURM_JOB_ID:-local}"
 RESULT_DIR="$ROOT_DIR/results/exp4_filter_aggregate/scientific_locality_attribution_${JOB_ID}"
 mkdir -p "$RESULT_DIR"
-
 # ---------------------------------------------------------------------------
 # Output CSV
 # ---------------------------------------------------------------------------
@@ -152,7 +129,6 @@ echo "dataset,representation,segment_size,segment_count,selectivity,threshold,k,
 "gpu_sum,cpu_raw_sum,sum_abs_err,sum_rel_err,"\
 "raw_baseline_count,raw_baseline_sum,"\
 "k_type" > "$ATTRIBUTION_CSV"
-
 # ---------------------------------------------------------------------------
 # Threshold prep times from Task 3 locality sweep (ms)
 # ---------------------------------------------------------------------------
@@ -176,12 +152,10 @@ get_prep_ms() {
     else echo "0"; fi
   else echo "0"; fi
 }
-
 get_k_star_sum() {
   # All scientific datasets have SUM k*=2 at epsilon=1e-3 for all representations
   echo "2"
 }
-
 # ---------------------------------------------------------------------------
 # Sweep function
 # ---------------------------------------------------------------------------
@@ -190,7 +164,6 @@ WARMUP=10
 TOTAL_POINTS=0
 PASS_COUNT=0
 FAIL_COUNT=0
-
 run_sweep() {
   local DATASET="$1"
   local RAW_PATH="$2"
@@ -198,14 +171,12 @@ run_sweep() {
   local THR50="$4"
   local THR90="$5"
   shift 5
-
   for SEG in "$@"; do
     local ARTIFACT="$LOCALITY_ROOT/$DATASET/$SEG"
     if [[ ! -d "$ARTIFACT" ]]; then
       echo "SKIP: $ARTIFACT not found"
       continue
     fi
-
     # Get artifact metadata
     local SEG_SIZE=$(python3 -c "
 import json
@@ -225,7 +196,6 @@ with open('$ARTIFACT/summary.json') as f:
     d = json.load(f)
 print(d['max_plane_count'])
 ")
-
     # Determine representation label
     local REP_LABEL
     case "$SEG" in
@@ -235,21 +205,16 @@ print(d['max_plane_count'])
       seg_global) REP_LABEL="quasi-global" ;;
       *) REP_LABEL="$SEG" ;;
     esac
-
     local K_STAR=$(get_k_star_sum "$DATASET" "$SEG")
-
     echo "=== $DATASET $SEG (rep=$REP_LABEL, seg_size=$SEG_SIZE, seg_count=$SEG_COUNT, max_planes=$MAX_K, k*=$K_STAR) ==="
-
     for thr_pair in "10:$THR10" "50:$THR50" "90:$THR90"; do
       local SEL="${thr_pair%%:*}"
       local THR="${thr_pair##*:}"
       local PREP_MS=$(get_prep_ms "$DATASET" "$SEG" "$SEL")
-
       for K in $(seq 1 "$MAX_K"); do
         TOTAL_POINTS=$((TOTAL_POINTS + 1))
         local CSV_OUT="$RESULT_DIR/${DATASET}_${SEG}_s${SEL}_k${K}.csv"
         local LOG_OUT="$RESULT_DIR/${DATASET}_${SEG}_s${SEL}_k${K}.log"
-
         # Determine k_type
         local K_TYPE="reference"
         if [[ "$K" -eq "$K_STAR" ]]; then
@@ -257,9 +222,7 @@ print(d['max_plane_count'])
         elif [[ "$K" -eq "$MAX_K" ]]; then
           K_TYPE="k_max"
         fi
-
         echo "  s${SEL} k=${K}/${MAX_K} thr=${THR} k_type=${K_TYPE} ..."
-
         if $BENCH \
             --dataset "$ARTIFACT" \
             --raw "$RAW_PATH" \
@@ -271,11 +234,9 @@ print(d['max_plane_count'])
             --block-threads 256 \
             --csv "$CSV_OUT" > "$LOG_OUT" 2>&1; then
           PASS_COUNT=$((PASS_COUNT + 1))
-
           # Parse CSV and append to attribution CSV
           python3 -c "
 import csv, sys
-
 csv_path = '$CSV_OUT'
 bp_ms = 'NA'
 raw_ms = 'NA'
@@ -288,7 +249,6 @@ sum_abs_err = 'NA'
 sum_rel_err = 'NA'
 raw_baseline_count = 'NA'
 raw_baseline_sum = 'NA'
-
 with open(csv_path) as f:
     reader = csv.DictReader(f)
     for row in reader:
@@ -303,7 +263,6 @@ with open(csv_path) as f:
         sum_rel_err = row.get('raw_sum_rel_err', 'NA')
         raw_baseline_count = row.get('raw_baseline_count', 'NA')
         raw_baseline_sum = row.get('raw_baseline_sum', 'NA')
-
 # Compute speedup
 try:
     bp_val = float(bp_ms)
@@ -314,14 +273,12 @@ try:
         speedup = 'NA'
 except (ValueError, ZeroDivisionError):
     speedup = 'NA'
-
 # Compute warm E2E
 prep_ms = $PREP_MS
 try:
     warm_e2e = f'{prep_ms + float(bp_ms):.4f}'
 except ValueError:
     warm_e2e = 'NA'
-
 print(f'$DATASET,$REP_LABEL,$SEG_SIZE,$SEG_COUNT,$SEL,$THR,$K,$MAX_K,'\
 f'{bp_ms},{raw_ms},{speedup},'\
 f'{prep_ms},{warm_e2e},'\
@@ -338,23 +295,19 @@ f'{raw_baseline_count},{raw_baseline_sum},'\
     done
   done
 }
-
 # ---------------------------------------------------------------------------
 # Run sweeps
 # ---------------------------------------------------------------------------
-
 echo "[$(date -Is)] Phase 2: Starting cesm_atm_cloud sweep"
 run_sweep "cesm_atm_cloud" \
   "$RAW_CESM" \
   "0.1714855656027794" "0.02812151238322258" "0.0" \
   "seg4096" "seg65536" "seg_global"
-
 echo "[$(date -Is)] Phase 2: Starting hurricane_u sweep"
 run_sweep "hurricane_u" \
   "$RAW_HURRICANE" \
   "65.99803924560547" "53.02256774902344" "41.232883071899415" \
   "seg4096" "seg65536" "seg_global"
-
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
@@ -363,7 +316,6 @@ echo "=== Scientific Locality Attribution Sweep Complete ==="
 echo "PASS: $PASS_COUNT, FAIL: $FAIL_COUNT, TOTAL: $TOTAL_POINTS"
 echo "Results: $ATTRIBUTION_CSV"
 wc -l "$ATTRIBUTION_CSV"
-
 # ---------------------------------------------------------------------------
 # Handoff marker
 # ---------------------------------------------------------------------------

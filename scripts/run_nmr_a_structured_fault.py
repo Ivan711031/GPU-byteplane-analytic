@@ -30,8 +30,8 @@ PLANE_COUNT = 8
 PLANE_WEIGHTS = [1 << (8 * (7 - plane)) for plane in range(PLANE_COUNT)]
 
 DATASET_PATHS: dict[str, str] = {
-    "hurricane_u": "/work/u4063895/datasets/locality_sensitivity/hurricane_u/seg4096",
-    "cesm_atm_cloud": "/work/u4063895/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
+    "hurricane_u": "${WORK_DIR}/datasets/locality_sensitivity/hurricane_u/seg4096",
+    "cesm_atm_cloud": "${WORK_DIR}/datasets/locality_sensitivity/cesm_atm_cloud/seg4096",
 }
 
 POLICIES: dict[str, list[int]] = {
